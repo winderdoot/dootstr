@@ -28,6 +28,7 @@ some data will be lost, however the null terminator will always be inserted.
 */
 void doot_realloc(dootstr_t *pdoot, size_t newcap)
 {
+    printf("Reallocating from: %ld to %ld\n", pdoot->capacity, newcap);
     if (newcap == 0)
     {
         DOOTFAIL("doot_realloc: Capacity of 0 is not allowed.");
@@ -49,7 +50,7 @@ void doot_realloc(dootstr_t *pdoot, size_t newcap)
     }
 }
 
-#define DOOT_NEWCAPACITY(oldcap) (oldcap*2U)
+#define DOOT_NEWCAPACITY(oldcap) ((oldcap)*2U)
 
 dootstr_t *doot_newfrom(const char *cstring)
 {
@@ -59,7 +60,7 @@ dootstr_t *doot_newfrom(const char *cstring)
         DOOTFAIL("malloc");
     }
     pdoot->pstr = strdup(cstring);
-    if (pdoot->pstr)
+    if (!pdoot->pstr)
     {
         DOOTFAIL("strdup");
     }
@@ -76,6 +77,7 @@ dootstr_t *doot_new(size_t capacity)
         DOOTFAIL("malloc");
     }
     pdoot->strlen = 0;
+    pdoot->pstr = NULL;
     pdoot->capacity = capacity;
     if (pdoot->capacity != 0)
     {
@@ -187,6 +189,106 @@ void doot_assign(dootstr_t *pleft, const dootstr_t *pright)
     }
 }
 
+void doot_append_c(dootstr_t *pdoot, const char *cstring)
+{
+    if (!pdoot || !cstring)
+    {
+        DOOTFAIL("doot_append: The address of a dootstr or a c string was null.");
+    }
+    size_t rlen = strlen(cstring);
+    if (!pdoot->pstr)
+    {
+        doot_realloc(pdoot, DOOT_NEWCAPACITY(rlen + 1));
+        pdoot->strlen = 0; // It should be zero already, just making sure tho
+        if (!pdoot->pstr)
+        {
+            DOOTFAIL("realloc");
+        }
+    }
+    else if (pdoot->capacity < pdoot->strlen + rlen + 1)
+    {
+        doot_realloc(pdoot, DOOT_NEWCAPACITY(pdoot->strlen + rlen + 1));
+        if (!pdoot->pstr)
+        {
+            DOOTFAIL("realloc");
+        }
+    }
+    memcpy(pdoot->pstr + pdoot->strlen, cstring, rlen + 1);
+    pdoot->strlen = pdoot->strlen + rlen; 
+}
+
+void doot_append(dootstr_t *pleft, const dootstr_t *pright)
+{
+    if (!pleft || !pright)
+    {
+        DOOTFAIL("doot_append: The address of a dootstr was null.");
+    }
+    if (!pright->pstr)
+    {
+        return;
+    }
+    if (!pleft->pstr)
+    {
+        doot_realloc(pleft, DOOT_NEWCAPACITY(pright->strlen + 1));
+        pleft->strlen = 0; // It should be zero already, just making sure tho
+        if (!pleft->pstr)
+        {
+            DOOTFAIL("realloc");
+        }
+    }
+    else if (pleft->capacity < pleft->strlen + pright->strlen + 1)
+    {
+        doot_realloc(pleft, DOOT_NEWCAPACITY(pleft->strlen + pright->strlen + 1));
+        if (!pleft->pstr)
+        {
+            DOOTFAIL("realloc");
+        }
+    }
+    memcpy(pleft->pstr + pleft->strlen, pright->pstr, pright->strlen + 1);
+    pleft->strlen = pleft->strlen + pright->strlen;
+}
+
+/*
+@brief Allocates a new doostr object containing the concatenated string. Not sure why someone would use this, but ok.
+*/
+dootstr_t *doot_concat(dootstr_t *pleft, dootstr_t *pright)
+{
+    if (!pleft || !pright)
+    {
+        DOOTFAIL("doot_concat: One of the argument dootstrs was null.");
+    }
+    dootstr_t *pdoot = doot_new(DOOT_NEWCAPACITY(pleft->strlen + pright->strlen + 1));
+    // From what I've read, calling memcpy(_, NULL, 0) could violate the standard, hence the check
+    if (pleft->pstr)
+    {
+        memcpy(pdoot->pstr, pleft->pstr, pleft->strlen); 
+    }
+    if (pright->pstr)
+    {
+        memcpy(pdoot->pstr + pleft->strlen, pright->pstr, pright->strlen);
+    }
+    pdoot->pstr[pleft->strlen + pright->strlen] = '\0';
+    return pdoot;
+}
+
+dootstr_t *doot_slice(dootstr_t *pdoot, ssize_t begin, ssize_t step, ssize_t end)
+{
+
+}
+
+typedef struct dootview
+{
+    int x;
+    // Struct that contains state of a dootstr search, view, tokenization or alike
+} dootview_t;
+
+/* HOW IT'S MEANT TO BE USED:
+dootview_t view;
+doot_setview(&view, dootstr_t string);
+for ...
+    dootstr_t *token = doot_nextok(&view, delimset)
+
+*/
 
 
 #pragma endregion

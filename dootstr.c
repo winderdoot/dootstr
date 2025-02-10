@@ -22,6 +22,10 @@ typedef struct dootstr
 } dootstr_t;
 
 #pragma region ALLOCATION
+/*
+@brief Reallocates the memory block of the dootstr, copying the old contents. If the new capacity is to small to contain the old contents,
+some data will be lost, however the null terminator will always be inserted.
+*/
 void doot_realloc(dootstr_t *pdoot, size_t newcap)
 {
     if (newcap == 0)
@@ -38,9 +42,31 @@ void doot_realloc(dootstr_t *pdoot, size_t newcap)
         DOOTFAIL("realloc");
     }
     pdoot->capacity = newcap;
+    if (pdoot->capacity < pdoot->strlen - 1) // Need to insert new null terminator
+    {
+        pdoot->pstr[pdoot->capacity - 1] = '\0';
+        pdoot->strlen = pdoot->capacity - 1;
+    }
 }
 
 #define DOOT_NEWCAPACITY(oldcap) (oldcap*2U)
+
+dootstr_t *doot_newfrom(const char *cstring)
+{
+    dootstr_t *pdoot = (dootstr_t*)malloc(sizeof(dootstr_t));
+    if (!pdoot)
+    {
+        DOOTFAIL("malloc");
+    }
+    pdoot->pstr = strdup(cstring);
+    if (pdoot->pstr)
+    {
+        DOOTFAIL("strdup");
+    }
+    pdoot->strlen = strlen(cstring);
+    pdoot->capacity = pdoot->strlen;
+    return pdoot;
+}
 
 dootstr_t *doot_new(size_t capacity)
 {
@@ -49,7 +75,6 @@ dootstr_t *doot_new(size_t capacity)
     {
         DOOTFAIL("malloc");
     }
-    pdoot->pstr = NULL;
     pdoot->strlen = 0;
     pdoot->capacity = capacity;
     if (pdoot->capacity != 0)
@@ -95,11 +120,17 @@ void doot_destroy(dootstr_t *pdoot)
         free(pdoot->pstr);
     }
     pdoot->strlen = 0;
+    pdoot->capacity = 0;
 }
 
 #pragma endregion
 
 #pragma region BASIC_FUNCTIONS
+
+void doot_clear(dootstr_t *pdoot)
+{
+    doot_destroy(pdoot);
+}
 
 void doot_assign_c(dootstr_t *pdoot, const char *cstring)
 {
@@ -122,6 +153,7 @@ void doot_assign_c(dootstr_t *pdoot, const char *cstring)
     
     pdoot->strlen = strlen(cstring);
     pdoot->pstr = strdup(cstring);
+    pdoot->capacity = pdoot->strlen + 1;
     if (!pdoot->pstr)
     {
         DOOTFAIL("doot_assing_c: strdup");
@@ -148,6 +180,7 @@ void doot_assign(dootstr_t *pleft, const dootstr_t *pright)
     }
     pleft->strlen = pright->strlen;
     pleft->pstr = strdup(pright->pstr);
+    pleft->capacity = pleft->strlen + 1;
     if (!pleft->pstr)
     {
         DOOTFAIL("strdup");

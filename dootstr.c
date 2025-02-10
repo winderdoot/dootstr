@@ -17,12 +17,32 @@ typedef struct dootstr
 {
     char *pstr; /*Null terminated pointer to the char data*/
     size_t strlen; /*Number of stored readable characters*/
+    size_t capacity; /*Current size of the allocated memory block*/
 
 } dootstr_t;
 
-#pragma region BASIC_FUNCTIONS
+#pragma region ALLOCATION
+void doot_realloc(dootstr_t *pdoot, size_t newcap)
+{
+    if (newcap == 0)
+    {
+        DOOTFAIL("doot_realloc: Capacity of 0 is not allowed.");
+    }
+    if (!pdoot)
+    {
+        DOOTFAIL("doot_realloc: The address of dootstr pointer was null.");
+    }
+    pdoot->pstr = (char*)realloc(pdoot->pstr, newcap);
+    if (!pdoot->pstr)
+    {
+        DOOTFAIL("realloc");
+    }
+    pdoot->capacity = newcap;
+}
 
-dootstr_t *doot_new()
+#define DOOT_NEWCAPACITY(oldcap) (oldcap*2U)
+
+dootstr_t *doot_new(size_t capacity)
 {
     dootstr_t *pdoot = (dootstr_t*)malloc(sizeof(dootstr_t));
     if (!pdoot)
@@ -31,6 +51,15 @@ dootstr_t *doot_new()
     }
     pdoot->pstr = NULL;
     pdoot->strlen = 0;
+    pdoot->capacity = capacity;
+    if (pdoot->capacity != 0)
+    {
+        pdoot->pstr = (char*)malloc(sizeof(char)*pdoot->capacity);
+        if (!pdoot->pstr)
+        {
+            DOOTFAIL("malloc");
+        }
+    }
     return pdoot;
 }
 
@@ -42,6 +71,10 @@ void doot_free(dootstr_t **ppdoot)
     }
     if (*ppdoot)
     {
+        if ((*ppdoot)->pstr)
+        {
+            free((*ppdoot)->pstr);
+        }
         free(*ppdoot);
     }
     *ppdoot = NULL;
@@ -63,6 +96,10 @@ void doot_destroy(dootstr_t *pdoot)
     }
     pdoot->strlen = 0;
 }
+
+#pragma endregion
+
+#pragma region BASIC_FUNCTIONS
 
 void doot_assign_c(dootstr_t *pdoot, const char *cstring)
 {

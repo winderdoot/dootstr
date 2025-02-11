@@ -7,6 +7,12 @@
 
 #define DOOTFAIL(source) (perror(source), fprintf(stderr, "DOOTFAIL: %s:%d\n", __FILE__, __LINE__), exit(EXIT_FAILURE))
 
+#ifdef __DOOTSTR_DEBUG
+#define DOOT_LOG_ALLOC(oldcap, newcap) (printf("Reallocating from: %ld to %ld\n", oldcap, newcap))
+#else
+#define DOOT_LOG_ALLOC(oldcap, newcap) 
+#endif
+
 /** @struct dootstr
  *  @brief This structure wraps a raw C style char pointer and provides a dynamic string implementation.
  *  Structures of this type are to be passed to dootstr functions. The dootstr struct always allocates it's own memory and
@@ -28,7 +34,7 @@ some data will be lost, however the null terminator will always be inserted.
 */
 void doot_realloc(dootstr_t *pdoot, size_t newcap)
 {
-    printf("Reallocating from: %ld to %ld\n", pdoot->capacity, newcap);
+    DOOT_LOG_ALLOC(pdoot->capacity, newcap);
     if (newcap == 0)
     {
         DOOTFAIL("doot_realloc: Capacity of 0 is not allowed.");
@@ -43,7 +49,7 @@ void doot_realloc(dootstr_t *pdoot, size_t newcap)
         DOOTFAIL("realloc");
     }
     pdoot->capacity = newcap;
-    if (pdoot->capacity < pdoot->strlen - 1) // Need to insert new null terminator
+    if (pdoot->capacity < pdoot->strlen + 1) // Need to insert new null terminator
     {
         pdoot->pstr[pdoot->capacity - 1] = '\0';
         pdoot->strlen = pdoot->capacity - 1;
@@ -213,6 +219,7 @@ void doot_append_c(dootstr_t *pdoot, const char *cstring)
             DOOTFAIL("realloc");
         }
     }
+
     memcpy(pdoot->pstr + pdoot->strlen, cstring, rlen + 1);
     pdoot->strlen = pdoot->strlen + rlen; 
 }
@@ -249,6 +256,82 @@ void doot_append(dootstr_t *pleft, const dootstr_t *pright)
 }
 
 /*
+@brief Inserts a cstring starting at a given position in the dootstr object. If the dootstr is empty only position 0 is valid.
+@param[in] position it's a signed to prevent overflow when decrementing, but it shouldn't be negative.
+*/
+void doot_insert_c(dootstr_t *pdoot, const char *cstring, ssize_t position)
+{
+    if (position < 0)
+    {
+        DOOTFAIL("doot_insert_c: The position cannot be negative.");
+    }
+    if (!pdoot || !cstring)
+    {
+        DOOTFAIL("doot_insert_c: The address of a dootstr or a c string was null.");
+    }
+    if (position > pdoot->strlen)
+    {
+        DOOTFAIL("doot_insert_c: Position has to be no greater than string length.");
+    }
+    if (position == pdoot->strlen)
+    {
+        puts("I");
+        doot_append_c(pdoot, cstring);
+        return;
+    }
+    size_t rlen = strlen(cstring); 
+    if ((!pdoot->pstr || pdoot->strlen == 0) && position != 0)
+    {
+        DOOTFAIL("doot_insert_c: Cannot insert at a non zero position to an empty string.");
+    }
+    // Block is empty - allocating new block //
+    if (!pdoot->pstr)
+    {
+        doot_realloc(pdoot, DOOT_NEWCAPACITY(rlen + 1));
+        memcpy(pdoot->pstr, cstring, rlen + 1);
+        pdoot->strlen = rlen;
+        return;
+    }
+    // Block is too small, allocating new block and manually moving //
+    if (pdoot->capacity < pdoot->strlen + rlen + 1)
+    {
+        puts("II");
+        size_t newcap = DOOT_NEWCAPACITY(pdoot->strlen + rlen + 1);
+        DOOT_LOG_ALLOC(pdoot->capacity, newcap);
+        char *newblock = (char*)malloc(sizeof(char)*newcap);  
+        if (!newblock)
+        {
+            DOOTFAIL("malloc");
+        }
+        memcpy(newblock, pdoot->pstr, position);
+        memcpy(newblock + position, cstring, rlen);
+        memcpy(newblock + position + rlen, pdoot->pstr + position, pdoot->strlen - position);
+        newblock[pdoot->strlen + rlen] = '\0';
+        free(pdoot->pstr);
+        pdoot->pstr = newblock;
+        pdoot->strlen = pdoot->strlen + rlen;
+        pdoot->capacity = newcap;
+        return;
+    }
+    // Block is big enough, just moving characters around //
+    // Ok so there was a horrendous bug involving overflow when comparing an int to an ssize_t.
+    // Since then the index and position are of type ssize_t.
+    puts("III");
+    for (ssize_t i = pdoot->strlen; i >= position; --i)
+    {
+        pdoot->pstr[i + rlen] = pdoot->pstr[i];
+    }
+    memcpy(pdoot->pstr + position, cstring, rlen);
+    pdoot->strlen = pdoot->strlen + rlen;
+    pdoot->pstr[pdoot->strlen] = '\0';
+}
+
+void doot_insert(dootstr_t *pleft, dootstr_t *pright, size_t position)
+{
+
+}
+
+/*
 @brief Allocates a new doostr object containing the concatenated string. Not sure why someone would use this, but ok.
 */
 dootstr_t *doot_concat(dootstr_t *pleft, dootstr_t *pright)
@@ -271,10 +354,10 @@ dootstr_t *doot_concat(dootstr_t *pleft, dootstr_t *pright)
     return pdoot;
 }
 
-dootstr_t *doot_slice(dootstr_t *pdoot, ssize_t begin, ssize_t step, ssize_t end)
-{
+// dootstr_t *doot_slice(dootstr_t *pdoot, ssize_t begin, ssize_t step, ssize_t end)
+// {
 
-}
+// }
 
 typedef struct dootview
 {

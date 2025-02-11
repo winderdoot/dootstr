@@ -4,16 +4,18 @@
 int main()
 {
     dootstr_t *s1 = doot_new(0);
-    doot_append_c(s1, " What ");
-    doot_append_c(s1, "an ");
+    doot_insert_c(s1, "New string", 0);
     puts(s1->pstr);
-    doot_append_c(s1, "amazing library!");
+    doot_insert_c(s1, "Newer string", 0);
     puts(s1->pstr);
-    doot_append_c(s1, " I love it!");
+    doot_insert_c(s1, "The newest string", 0);
     puts(s1->pstr);
-    doot_realloc(s1, s1->strlen);
-    doot_append_c(s1, "x");
+    doot_insert_c(s1, "ABCD===EEEfff", 5);
     puts(s1->pstr);
-    doot_free(&s1);
+    doot_insert_c(s1, "UwU", 20);
+    puts(s1->pstr);
 
+
+    doot_free(&s1);
+    return EXIT_SUCCESS;
 }

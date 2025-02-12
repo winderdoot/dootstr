@@ -10,11 +10,26 @@ TODO:
 slice_view
 slice_copy
 
-splitting
+split() rsplit()
+partition() rpartition()
+splitlines()
+join()
 python like methods
 
-append
-extend
-concatenation
+count()
+index() => index_c, index
+isalnum()
+isalpha()
+isdigit()
+islower()
+isupper()
+isspace()
+
+
+upper()
+lower()
+strip(), lstrip(), rstrip()
+replace()
+swapcase()
 
 Probably not gonna implement stuff that would be indentical to an already existing C library function

@@ -133,7 +133,7 @@ void doot_destroy(dootstr_t *pdoot)
 
 #pragma endregion
 
-#pragma region BASIC_FUNCTIONS
+#pragma region MODIFICATION
 
 void doot_clear(dootstr_t *pdoot)
 {
@@ -326,9 +326,70 @@ void doot_insert_c(dootstr_t *pdoot, const char *cstring, ssize_t position)
     pdoot->pstr[pdoot->strlen] = '\0';
 }
 
-void doot_insert(dootstr_t *pleft, dootstr_t *pright, size_t position)
+void doot_insert(dootstr_t *pleft, dootstr_t *pright, ssize_t position)
 {
-
+    if (position < 0)
+    {
+        DOOTFAIL("doot_insert: The position cannot be negative.");
+    }
+    if (!pleft || !pright)
+    {
+        DOOTFAIL("doot_insert: The address of a dootstr was null.");
+    }
+    if (position > pleft->strlen)
+    {
+        DOOTFAIL("doot_insert: Position has to be no greater than string length.");
+    }
+    if (position == pleft->strlen)
+    {
+        puts("I");
+        doot_append(pleft, pright);
+        return;
+    }
+    if ((!pleft->pstr || pleft->strlen == 0) && position != 0)
+    {
+        DOOTFAIL("doot_insert_c: Cannot insert at a non zero position to an empty string.");
+    }
+    // Block is empty - allocating new block //
+    if (!pleft->pstr)
+    {
+        doot_realloc(pleft, DOOT_NEWCAPACITY(pright->strlen + 1));
+        memcpy(pleft->pstr, pright->pstr, pright->strlen + 1);
+        pleft->strlen = pright->strlen;
+        return;
+    }
+    // Block is too small, allocating new block and manually moving //
+    if (pleft->capacity < pleft->strlen + pright->strlen + 1)
+    {
+        puts("II");
+        size_t newcap = DOOT_NEWCAPACITY(pleft->strlen + pright->strlen + 1);
+        DOOT_LOG_ALLOC(pleft->capacity, newcap);
+        char *newblock = (char*)malloc(sizeof(char)*newcap);  
+        if (!newblock)
+        {
+            DOOTFAIL("malloc");
+        }
+        memcpy(newblock, pleft->pstr, position);
+        memcpy(newblock + position, pright->pstr, pright->strlen);
+        memcpy(newblock + position + pright->strlen, pleft->pstr + position, pleft->strlen - position);
+        newblock[pleft->strlen + pright->strlen] = '\0';
+        free(pleft->pstr);
+        pleft->pstr = newblock;
+        pleft->strlen = pleft->strlen + pright->strlen;
+        pleft->capacity = newcap;
+        return;
+    }
+    // Block is big enough, just moving characters around //
+    // Ok so there was a horrendous bug involving overflow when comparing an int to an ssize_t.
+    // Since then the index and position are of type ssize_t.
+    puts("III");
+    for (ssize_t i = pleft->strlen; i >= position; --i)
+    {
+        pleft->pstr[i + pright->strlen] = pleft->pstr[i];
+    }
+    memcpy(pleft->pstr + position, pright->pstr, pright->strlen);
+    pleft->strlen = pleft->strlen + pright->strlen;
+    pleft->pstr[pleft->strlen] = '\0';
 }
 
 /*
@@ -374,6 +435,9 @@ for ...
 */
 
 
+#pragma endregion
+
+#pragma region 
 #pragma endregion
 
 #endif

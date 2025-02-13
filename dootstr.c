@@ -438,7 +438,7 @@ void str_cut(str_t *pstr, size_t position, size_t length)
 {
     if (!pstr)
     {
-        STRFAIL("str_remove: The passed address was null.");
+        STRFAIL("str_cut: The passed address was null.");
     }
     if (length < 1)
     {
@@ -446,7 +446,7 @@ void str_cut(str_t *pstr, size_t position, size_t length)
     }
     if (position + 1 > pstr->strlen || position + length > pstr->strlen)
     {
-        STRFAIL("str_remove: The substring to be removed goes out of bounds of the string.");
+        STRFAIL("str_cut: The substring to be removed goes out of bounds of the string.");
     }
     for (ssize_t i = position + length; i <= pstr->strlen; ++i) // Moving hte null terminator as well
     {
@@ -455,10 +455,61 @@ void str_cut(str_t *pstr, size_t position, size_t length)
     pstr->strlen -= length;
 }
 
-/*@brief Removes all occurances of subs from the string. Returns number of removed instances.*/
-size_t str_remove(str_t *pstr, const char *subs)
+size_t str_count(str_t *pstr, const char* seq); // Temporary solution to solve compilation issues.
+
+/*@brief Removes all occurances of seq from the string. Returns number of removed instances.*/
+size_t str_remove(str_t *pstr, const char *seq)
 {
-    return 0;
+    if (!pstr)
+    {
+        STRFAIL("str_remove: The passed address was null.");
+    }
+    if (!pstr->pstr)
+    {
+        return 0;
+    }
+    size_t count = str_count(pstr, seq);
+    size_t rlen = strlen(seq);
+    size_t newLen = pstr->strlen - count *rlen;
+    size_t *seqPos = (size_t*)malloc(sizeof(size_t)*count); // Array housing the positions of found substrings
+    if (!seqPos)
+    {
+        STRFAIL("malloc");
+    }
+    size_t i = 0;
+    char *p = pstr->pstr;
+    while ((p = strstr(p, seq)) != NULL)
+    {
+        //printf("pos: %ld\n", p - pstr->pstr);
+        seqPos[i++] = p - pstr->pstr;
+        p += rlen;
+    }
+    i = 0; // The current element to be moved to the left (or left alone)
+    size_t seqInd = 0; // The index of the next sequence to be ecnountered
+    size_t offset = 0; // The offset by which to move elements to the left
+    while (i < pstr->strlen + 1) // Plus 1 to copy '/0'
+    {
+        //printf("i: %ld\n", i);
+        if (seqInd < count && i == seqPos[seqInd])
+        {
+            i += rlen;
+            offset += rlen;
+            seqInd++;
+        }
+        else if (offset > 0)
+        {
+            pstr->pstr[i - offset] = pstr->pstr[i];
+            ++i;
+        }
+        else
+        {
+            ++i;
+        }
+    }
+    free(seqPos);
+    pstr->strlen = newLen;
+    //pstr->pstr[pstr->strlen-1] = '\0';
+    return count;
 }
 
 /*@brief Removes all occurances of char c from the string. Returns number of removed instances.*/
@@ -470,6 +521,199 @@ size_t str_removeCh(str_t *pstr, char c)
 #pragma endregion
 
 #pragma region LOGICAL
+int str_isempty(str_t *pstr)
+{
+    if (!pstr)
+    {
+        STRFAIL("str_isempty: The address of a str_t was null.");
+    }
+    return !pstr->pstr || (pstr->strlen == 0);
+}
+
+int str_isalnum(str_t *pstr)
+{
+    if (!pstr)
+    {
+        STRFAIL("str_isalnum: The address of a str_t was null.");
+    }
+    if (!pstr->pstr)
+    {
+        return 0;
+    }
+    char *p = pstr->pstr;
+    while (*p)
+    {
+        if (!isalnum(*p))
+        {
+            return 0;
+        }
+        ++p;
+    }
+    return 1;
+}
+
+int str_isalpha(str_t *pstr)
+{
+    if (!pstr)
+    {
+        STRFAIL("str_isalpha: The address of a str_t was null.");
+    }
+    if (!pstr->pstr)
+    {
+        return 0;
+    }
+    char *p = pstr->pstr;
+    while (*p)
+    {
+        if (!isalpha(*p))
+        {
+            return 0;
+        }
+        ++p;
+    }
+    return 1;
+}
+
+int str_isdigit(str_t *pstr)
+{
+    if (!pstr)
+    {
+        STRFAIL("str_isdigit: The address of a str_t was null.");
+    }
+    if (!pstr->pstr)
+    {
+        return 0;
+    }
+    char *p = pstr->pstr;
+    while (*p)
+    {
+        if (!isdigit(*p))
+        {
+            return 0;
+        }
+        ++p;
+    }
+    return 1;
+}
+
+int str_islower(str_t *pstr)
+{
+    if (!pstr)
+    {
+        STRFAIL("str_islower: The address of a str_t was null.");
+    }
+    if (!pstr->pstr)
+    {
+        return 0;
+    }
+    char *p = pstr->pstr;
+    while (*p)
+    {
+        if (isalpha(*p) && !islower(*p))
+        {
+            return 0;
+        }
+        ++p;
+    }
+    return 1;
+}
+
+int str_isupper(str_t *pstr)
+{
+    if (!pstr)
+    {
+        STRFAIL("str_isupper: The address of a str_t was null.");
+    }
+    if (!pstr->pstr)
+    {
+        return 0;
+    }
+    char *p = pstr->pstr;
+    while (*p)
+    {
+        if (isalpha(*p) && !isupper(*p))
+        {
+            return 0;
+        }
+        ++p;
+    }
+    return 1;
+}
+
+int str_isspace(str_t *pstr)
+{
+    if (!pstr)
+    {
+        STRFAIL("str_isspace: The address of a str_t was null.");
+    }
+    if (!pstr->pstr)
+    {
+        return 0;
+    }
+    char *p = pstr->pstr;
+    while (*p)
+    {
+        if (*p == ' ')
+        {
+            return 0;
+        }
+        ++p;
+    }
+    return 1;
+}
+
+/*Returns 1 if the string contains only characters from a given set*/
+int str_containsOnly(str_t *pstr, const char *set)
+{
+    if (!pstr)
+    {
+        STRFAIL("str_containsOnly: The address of a str_t was null.");
+    }
+    if (!pstr->pstr)
+    {
+        return 0;
+    }
+    char *p = pstr->pstr;
+    while (*p)
+    {
+        if (strpbrk(p, set) != p)
+        {
+            return 0;
+        }
+        ++p;
+    }
+    return 1;
+}
+
+/*Returns 1 if the string contains any of the characters characters from a given set.
+The function is just a wrapper for strpbrk(), but I kept it for convenience.*/
+int str_containsAny(str_t *pstr, const char *set)
+{
+    if (!pstr)
+    {
+        STRFAIL("str_containsAny: The address of a str_t was null.");
+    }
+    if (!pstr->pstr)
+    {
+        return 0;
+    }
+    return strpbrk(pstr->pstr, set) != NULL;
+}
+
+/*Returns 1 if the string contains seq as a substr.
+The function is just a wrapper for strstr() but I kept it for convenience.*/
+int str_containsSeq(str_t *pstr, const char *seq)
+{
+    if (!pstr)
+    {
+        STRFAIL("str_containsAny: The address of a str_t was null.");
+    }
+    if (!pstr->pstr)
+    {
+        return 0;
+    }
+    return strstr(pstr->pstr, seq) != NULL;
+}
 #pragma endregion
 
 #pragma region TRANSFORM
@@ -531,7 +775,7 @@ size_t str_count(str_t *pstr, const char* seq)
 {
     if (!pstr)
     {
-        STRFAIL("str_replaceAny: The passed address was null.");
+        STRFAIL("str_count: The passed address was null.");
     }
     if (!pstr->pstr)
     {
@@ -552,7 +796,7 @@ size_t str_countAny(str_t *pstr, const char* set)
 {
     if (!pstr)
     {
-        STRFAIL("str_replaceAny: The passed address was null.");
+        STRFAIL("str_countAny: The passed address was null.");
     }
     if (!pstr->pstr)
     {
@@ -568,7 +812,9 @@ size_t str_countAny(str_t *pstr, const char* set)
     return count;
 }
 
-/*@brief Replaces each full occurance of oldval with newval. Returns the number of replaced instances. Always causes reallocation.*/
+/*@brief Replaces each full occurance of oldval with newval. Returns the number of replaced instances. Always causes reallocation.
+NOTE: This *can* be used for removing substrings, but isn't recomended as this function causes an unnecessary reallocation. In such cases
+use str_remove() instead!*/
 size_t str_replace(str_t *pstr, const char *oldval, const char *newval)  // I suck at C, debugging this was hell...
 {
     if (!pstr)

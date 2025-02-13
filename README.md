@@ -1,6 +1,8 @@
 
 # dootstr
 
+TODO::: CHANGE THE NAME TO str_t instead of doot ffs. Then the name space would be str_function()
+
 Simple C string library
 I have no idea how to write markdown files, I'll fix this up as I go.
 
@@ -16,7 +18,6 @@ splitlines()
 join()
 python like methods
 
-count()
 index() => index_c, index
 isalnum()
 isalpha()
@@ -25,11 +26,7 @@ islower()
 isupper()
 isspace()
 
-
-upper()
-lower()
 strip(), lstrip(), rstrip()
-replace()
-swapcase()
+format()
 
 Probably not gonna implement stuff that would be indentical to an already existing C library function

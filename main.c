@@ -3,12 +3,11 @@
 
 int main()
 {
-    dootstr_t *s1 = doot_newfrom("Apples apples pupa");
-    for (int i = 0; i < 500; i++)
-    {
-        doot_append_c(s1, "Apples apples pupa");
-    }
-    printf("%ld\n", doot_count(s1, "pp"));
+    dootstr_t *s1 = doot_newfrom("abaabaa");
+    doot_replace(s1, "a", "aa");
+    printf("len: %ld, cap: %ld\n", s1->strlen, s1->capacity);
+    puts(s1->pstr);
+
 
     doot_free(&s1);
     

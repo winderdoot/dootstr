@@ -14,6 +14,8 @@
 #define DOOT_LOG_ALLOC(oldcap, newcap) 
 #endif
 
+#define DOOT_NEWCAPACITY(oldcap) ((oldcap)*2U)
+
 /** @struct dootstr
  *  @brief This structure wraps a raw C style char pointer and provides a dynamic string implementation.
  *  Structures of this type are to be passed to dootstr functions. The dootstr struct always allocates it's own memory and
@@ -57,8 +59,6 @@ void doot_realloc(dootstr_t *pdoot, size_t newcap)
     }
 }
 
-#define DOOT_NEWCAPACITY(oldcap) ((oldcap)*2U)
-
 /*@brief Returns a pointer to a string initialized with a c-style string literal.*/
 dootstr_t *doot_newfrom(const char *cstring)
 {
@@ -73,7 +73,7 @@ dootstr_t *doot_newfrom(const char *cstring)
         DOOTFAIL("strdup");
     }
     pdoot->strlen = strlen(cstring);
-    pdoot->capacity = pdoot->strlen;
+    pdoot->capacity = pdoot->strlen + 1;
     return pdoot;
 }
 
@@ -455,6 +455,18 @@ void doot_cut(dootstr_t *pdoot, size_t position, size_t length)
     pdoot->strlen -= length;
 }
 
+/*@brief Removes all occurances of subs from the string. Returns number of removed instances.*/
+size_t doot_remove(dootstr_t *pdoot, const char *subs)
+{
+    return 0;
+}
+
+/*@brief Removes all occurances of char c from the string. Returns number of removed instances.*/
+size_t doot_removeCh(dootstr_t *pdoot, char c)
+{
+    return 0;
+}
+
 #pragma endregion
 
 #pragma region LOGICAL
@@ -486,6 +498,31 @@ void doot_lower(dootstr_t *pdoot)
     {
         *p = tolower(*p);
         ++p;
+    }
+}
+
+void swapcase(dootstr_t *pdoot)
+{
+    if (!pdoot)
+    {
+        DOOTFAIL("doot_replaceAnyCh: The passed address was null.");
+    }
+    if (!pdoot->pstr)
+    {
+        return;
+    }
+    char *p = pdoot->pstr;
+    while (*p)
+    {
+        if (isupper(*p))
+        {
+            *p = tolower(*p);
+        }
+        else if (islower(*p))
+        {
+            *p = toupper(*p);
+        }
+        p++;
     }
 }
 
@@ -531,50 +568,161 @@ size_t doot_countAny(dootstr_t *pdoot, const char* set)
     return count;
 }
 
-/*@brief Replaces each full occurance of oldval with newval. Returns the number of replaced instances.*/
-size_t doot_replace(dootstr_t *pdoot, const char *oldval, const char *newval)
+/*@brief Replaces each full occurance of oldval with newval. Returns the number of replaced instances. Always causes reallocation.*/
+size_t doot_replace(dootstr_t *pdoot, const char *oldval, const char *newval)  // I suck at C, debugging this was hell...
 {
-    return 0;
+    if (!pdoot)
+    {
+        DOOTFAIL("doot_replace: The passed address was null.");
+    }
+    size_t count = doot_count(pdoot, oldval);
+    size_t rlen = strlen(newval), llen = strlen(oldval);
+    size_t newLen = (rlen > llen) ? pdoot->strlen + count*(rlen-llen) : pdoot->strlen - count*(llen-rlen);
+    size_t *offsets = (size_t*)malloc(sizeof(size_t)*count);
+    if (!offsets)
+    {
+        DOOTFAIL("malloc");
+    }
+    size_t i = 0;
+    char *p = pdoot->pstr;
+    while ((p = strstr(p, oldval)) != NULL)
+    {
+        offsets[i++] = p - pdoot->pstr;
+        p += llen;
+    }
+
+    char *newblock;
+    size_t blocksize;
+    if (pdoot->capacity < newLen + 1)
+    {
+        blocksize = newLen + 1;
+    }
+    else
+    {
+        blocksize = pdoot->capacity;
+    }
+    newblock = (char*)malloc(sizeof(char)*blocksize);
+    memset(newblock, 0, blocksize);
+    DOOT_LOG_ALLOC(pdoot->capacity, blocksize);
+    if (!newblock)
+    {
+        DOOTFAIL("malloc");
+    }
+
+    i = 0;
+    size_t indOff = 0;
+    size_t oldpos = 0;
+    while (i < newLen + 1) // Plus 1 to copy '/0'
+    {
+        if (indOff < count && oldpos == offsets[indOff])
+        {
+            memcpy(newblock + i, newval, rlen);
+            i += rlen;
+            oldpos += llen;
+            indOff++;
+        }
+        else
+        {
+            newblock[i++] = pdoot->pstr[oldpos];
+            oldpos++;
+        }   
+    }
+    //newblock[blocksize-1] = '\0';
+    free(pdoot->pstr);
+    free(offsets);
+    pdoot->pstr = newblock;
+    pdoot->capacity = blocksize;
+    pdoot->strlen = newLen;
+    return count;
 }
 
-/*@brief Replaces any of the characters in set with newval. Returns the number of replaced instances.*/
-// size_t doot_replaceAny(dootstr_t *pdoot, const char *set, const char *newval)
-// {
-//     if (!pdoot)
-//     {
-//         DOOTFAIL("doot_replaceAny: The passed address was null.");
-//     }
-//     size_t count = doot_countAny(pdoot, set);
-//     size_t rlen = strlen(newval);
-//     size_t extraChars = count * rlen - count; // Additional needed characters
-//     size_t *offsets = (size_t*)malloc(sizeof(size_t)*count);
-//     if (!offsets)
-//     {
-//         DOOTFAIL("malloc");
-//     }
-//     size_t i = 0;
-//     char *p, *plast = pdoot->pstr;
-//     while ((p = strpbrk(p, set)) != NULL)
-//     {
-//         offsets[i++] = p - plast;
-//     }
+/*@brief Replaces any of the characters in set with newval. Returns the number of replaced instances. Always causes reallocation.*/
+size_t doot_replaceAny(dootstr_t *pdoot, const char *set, const char *newval)
+{
+    if (!pdoot)
+    {
+        DOOTFAIL("doot_replaceAny: The passed address was null.");
+    }
+    size_t count = doot_countAny(pdoot, set);
+    size_t rlen = strlen(newval);
+    size_t extraChars = count * rlen - count; // Additional needed characters
+    size_t *offsets = (size_t*)malloc(sizeof(size_t)*count);
+    if (!offsets)
+    {
+        DOOTFAIL("malloc");
+    }
+    size_t i = 0;
+    char *p = pdoot->pstr;
+    while ((p = strpbrk(p, set)) != NULL)
+    {
+        offsets[i++] = p - pdoot->pstr;
+        p++;
+    }
 
-//     char *newblock;
-//     if (pdoot->capacity < pdoot->strlen + extraChars + 1)
-//     {
-//         newblock = (char*)malloc(sizeof(char)*(pdoot->strlen + extraChars + 1));
-//     }
-//     else
-//     {
-//         newblock = (char*)malloc(sizeof(char)*(pdoot->capacity));
-//     }
-//     if (!newblock)
-//     {
-//         DOOTFAIL("malloc");
-//     }
-//     size_t
+    char *newblock;
+    size_t blocksize;
+    if (pdoot->capacity < pdoot->strlen + extraChars + 1)
+    {
+        blocksize = pdoot->strlen + extraChars + 1;
+    }
+    else
+    {
+        blocksize = pdoot->capacity;
+    }
+    newblock = (char*)malloc(sizeof(char)*blocksize);
+    DOOT_LOG_ALLOC(pdoot->capacity, blocksize);
+    if (!newblock)
+    {
+        DOOTFAIL("malloc");
+    }
 
-// }
+    i = 0;
+    size_t indOff = 0;
+    size_t oldpos = 0;
+    while (i < pdoot->strlen + extraChars + 1) // Plus 1 to copy '/0'
+    {
+        if (indOff < count && oldpos == offsets[indOff])
+        {
+            memcpy(newblock + i, newval, rlen);
+            i += rlen;
+            indOff++;
+        }
+        else
+        {
+            newblock[i++] = pdoot->pstr[oldpos];
+        }
+        oldpos++;
+    }
+    free(pdoot->pstr);
+    free(offsets);
+    pdoot->pstr = newblock;
+    pdoot->capacity = blocksize;
+    pdoot->strlen = pdoot->strlen + extraChars;
+    return count;
+}
+
+/*@brief Replaces any of the characters in set with a char c. Returns the number of replaced instances.*/
+size_t doot_replaceAnyCh(dootstr_t *pdoot, const char *set, char c)
+{
+    if (!pdoot)
+    {
+        DOOTFAIL("doot_replaceAnyCh: The passed address was null.");
+    }
+    if (!pdoot->pstr)
+    {
+        return 0;
+    }
+    size_t count = 0;
+    char *p = pdoot->pstr;
+    while ((p = strpbrk(p, set)) != NULL)
+    {
+        *p = c;
+        count++;
+        p++;
+    }
+    return count;
+}
+
 #pragma endregion
 
 #pragma region SPLITTING

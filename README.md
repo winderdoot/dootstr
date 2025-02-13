@@ -1,10 +1,9 @@
 
 # dootstr
 
-Simple C string library by widerdoot
-I have no idea how to write markdown files, I'll fix this up as I go.
-
-There will be documentation here and shit. For now it's a to do list.
+Simple C string library by widerdoot.  
+I have no idea how to write markdown files, I'll fix this up as I go.  
+There will be documentation here and shit. For now it's a to do list.  
 
 TODO:
 slice_view

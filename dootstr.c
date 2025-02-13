@@ -115,6 +115,28 @@ str_t *str_new(size_t capacity)
     return pstr;
 }
 
+/*@brief Internal funtion that calculates the actual value of a FROM_END index.*/
+size_t __str_boundIndex(size_t ind, size_t clen)
+{
+    if (ind == STR_END) // It's after the last
+    {
+        return clen;
+    }
+    else if (ind & STR_END) // It's counted from the end
+    {
+        ind = (ind & ~STR_END);
+        if (ind > clen)
+        {
+            STR_SLICE_ERROR("str_newslice: Beg goes out of bounds from the left side.");
+            return 0;
+        }
+        else 
+        {
+            return clen - ind;
+        }
+    }
+}
+
 // TODO: Maybe redesign this hot garbage function and change all int types to fixed width??? No? Ok. Fine.
 /*@brief Returns a pointer to a new string populated with characters from the python-like slice [beg, ..., end) with a given step.
 A negative step means that the order will be reversed. Use STR_END to indicate the item one after the last one. Use STR_FROMEND(n) to indicate the
@@ -134,12 +156,17 @@ str_t *str_newslice(const char *cstring, size_t beg, size_t end, long step)
         STR_SLICE_ERROR("str_newslice: The sliced cstring is empty.");
         return str_newfrom("");
     }
+    if (step == 0)
+    {
+        STR_SLICE_ERROR("str_newsloice: The step cannot be zero. Resulting slice is empty.");
+        return str_newfrom("");
+    }
 
     size_t clen = strlen(cstring);
     // beg parameter
     if (beg == STR_END)
     {
-        beg = clen - 1;
+        beg = clen;
     }
     else if (beg & STR_END) // It's counted from the end
     {
@@ -155,7 +182,7 @@ str_t *str_newslice(const char *cstring, size_t beg, size_t end, long step)
             beg = clen - beg;
         }
     }
-    else if (beg > clen)
+    else if (beg >= clen)
     {
         STR_SLICE_ERROR("str_newslice: Beg goes out of bounds from the right side.");
         beg = clen - 1;
@@ -163,7 +190,7 @@ str_t *str_newslice(const char *cstring, size_t beg, size_t end, long step)
     // end parameter
     if (end == STR_END)
     {
-        end = clen - 1;
+        end = clen;
     }
     else if (end & STR_END) // It's counted from the end
     {
@@ -172,7 +199,7 @@ str_t *str_newslice(const char *cstring, size_t beg, size_t end, long step)
         if (end > clen)
         {
             STR_SLICE_ERROR("str_newslice: End goes out of bounds from the left side.");
-            end = clen - 1;
+            end = 0;
         }
         else
         {
@@ -182,22 +209,44 @@ str_t *str_newslice(const char *cstring, size_t beg, size_t end, long step)
     else if (end > clen)
     {
         STR_SLICE_ERROR("str_newslice: End goes out of bounds from the right side.");
-        end = clen - 1;
+        end = clen;
     }
 
     if (end < beg)
     {
-        STR_SLICE_ERROR("str_newsloce: End is less than beg - resulting slice is invalid (empty).");
+        STR_SLICE_ERROR("str_newslice: End is less than beg - resulting slice is invalid (empty).");
+        return str_newfrom("");
+    }
+    else if (end == beg)
+    {
+        STR_SLICE_ERROR("str_newslice: End is equal to beg - resulting slice is empty.");
         return str_newfrom("");
     }
 
     printf("Beg: %ld, end: %ld, step: %ld\n", beg, end, step);
-    return NULL;
-    // size_t sliceLen = 0;
-    // if (step > 0)
-    // {
-
-    // }
+    size_t sliceLen = 1 + (end - beg - 1) / labs(step); // This is correct I think
+    printf("Slicelen: %ld\n", sliceLen);
+    str_t *slice = str_new(sliceLen + 1);
+    printf("capacity: %ld\n", slice->capacity);
+    size_t ind = (step > 0) ? beg : end - 1;
+    size_t added = 0;
+    while (added < sliceLen)
+    {
+        printf("Ind: %ld\n", ind);
+        slice->pstr[added++] = cstring[ind];
+        if (step > 0)
+        {
+            ind += step;
+        }
+        else
+        {
+            ind += (size_t)(-step);
+        }
+    }
+    slice->strlen = sliceLen;
+    slice->pstr[slice->strlen] = '\0';
+    
+    return slice;
 }
 
 /*@brief Create a new doostr by taking ownership of an existing heap allocated c-style string. Other means of construction are
@@ -215,6 +264,7 @@ str_t *str_steal(char *cstring)
     return pstr;
 }
 
+/*@brief Safely free a str_t object by passing the address of a pointer variable. The pointer will be set to null afterwards.*/
 void str_free(str_t **ppstr)
 {
     if (!ppstr)

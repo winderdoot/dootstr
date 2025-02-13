@@ -1,5 +1,8 @@
 /*
-
+https://github.com/winderdoot/dootstr
+Simple C string library by winderdoot.
+The creator is not responsible for any memory leaks caused.
+It works on my machine.
 */
 
 #ifndef __DOOTSTR_INC
@@ -460,6 +463,7 @@ void str_cut(str_t *pstr, size_t position, size_t length)
 }
 
 size_t str_count(str_t *pstr, const char* seq); // Temporary solution to solve compilation issues.
+size_t str_countAny(str_t *pstr, const char* set);
 
 /*@brief Removes all occurances of seq from the string. Returns number of removed instances.*/
 size_t str_remove(str_t *pstr, const char *seq)
@@ -516,14 +520,54 @@ size_t str_remove(str_t *pstr, const char *seq)
     return count;
 }
 
-/*@brief Removes all occurances of char c from the string. Returns number of removed instances.*/
-size_t str_removeCh(str_t *pstr, char c)
+/*@brief Removes all occurances of any character in set from the string. Returns number of removed instances.*/
+size_t str_removeAny(str_t *pstr, const char *set)
 {
-    return 0;
+    if (!pstr)
+    {
+        STRFAIL("str_removeAny: The passed address was null.");
+    }
+    if (!pstr->pstr)
+    {
+        return 0;
+    }
+    size_t count = str_countAny(pstr, set);
+    size_t newLen = pstr->strlen - count;
+    size_t *seqPos = (size_t*)malloc(sizeof(size_t)*count); // Array housing the positions of found substrings
+    if (!seqPos)
+    {
+        STRFAIL("malloc");
+    }
+    size_t i = 0;
+    char *p = pstr->pstr;
+    while ((p = strpbrk(p, set)) != NULL)
+    {
+        //printf("pos: %ld\n", p - pstr->pstr);
+        seqPos[i++] = p - pstr->pstr;
+        ++p;
+    }
+    i = 0; // The current element to be moved to the left (or left alone)
+    size_t seqInd = 0; // The index of the next sequence to be ecnountered
+    size_t offset = 0; // The offset by which to move elements to the left
+    while (i < pstr->strlen + 1) // Plus 1 to copy '/0'
+    {
+        //printf("i: %ld\n", i);
+        if (seqInd < count && i == seqPos[seqInd])
+        {
+            offset++;
+            seqInd++;
+        }
+        else if (offset > 0)
+        {
+            pstr->pstr[i - offset] = pstr->pstr[i];
+        }
+        i++;
+    }
+    free(seqPos);
+    pstr->strlen = newLen;
+    //pstr->pstr[pstr->strlen-1] = '\0';
+    return count;
 }
-
-//TODO: Next do striping and investigate what other cleanup fnc could be usefull.
-// Next do indexes, that's simple. Then splits and partitions, that's harder.
 
 #pragma endregion
 
@@ -660,7 +704,7 @@ int str_isspace(str_t *pstr)
     char *p = pstr->pstr;
     while (*p)
     {
-        if (*p == ' ')
+        if (isspace(*p))
         {
             return 0;
         }
@@ -975,6 +1019,54 @@ size_t str_replaceAnyCh(str_t *pstr, const char *set, char c)
     }
     return count;
 }
+
+/*@brief Removes all preceding and trailing whitespaces.*/
+void str_strip(str_t *pstr)
+{
+    if (!pstr)
+    {
+        STRFAIL("str_strip: The passed address of str_t was null.");
+    }
+    if (!pstr->pstr)
+    {
+        return;
+    }
+    size_t leftoff = 0, rightoff = 0;
+    char *p = pstr->pstr;
+    while (*p && isspace(*p))
+    {
+        ++leftoff;
+        ++p;
+    }
+    if (leftoff == pstr->strlen)
+    {
+        pstr->pstr[0] = '\0';
+        pstr->strlen = 0;
+        return;
+    }
+    p = pstr->pstr + pstr->strlen - 1;
+    while (p >= pstr->pstr && isspace(*p))
+    {
+        ++rightoff;
+        --p;
+    }
+    if (leftoff > 0)
+    {
+        for (size_t i = leftoff; i < pstr->strlen - rightoff; ++i)
+        {
+            pstr->pstr[i - leftoff] = pstr->pstr[i];
+        }
+    }
+    pstr->pstr[pstr->strlen - rightoff - leftoff] = '\0';
+}
+
+/*@brief Removes all proceeding and trailing whitespaces.*/
+void str_lstrip(str_t *pstr)
+{
+
+}
+//TODO: Next do striping and investigate what other cleanup fnc could be usefull.
+// Next do indexes, that's simple. Then splits and partitions, that's harder.
 
 #pragma endregion
 

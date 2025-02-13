@@ -135,12 +135,13 @@ size_t __str_boundIndex(size_t ind, size_t clen)
             return clen - ind;
         }
     }
+    return ind;
 }
 
 // TODO: Maybe redesign this hot garbage function and change all int types to fixed width??? No? Ok. Fine.
 /*@brief Returns a pointer to a new string populated with characters from the python-like slice [beg, ..., end) with a given step.
 A negative step means that the order will be reversed. Use STR_END to indicate the item one after the last one. Use STR_FROMEND(n) to indicate the
-n-th item from the back, ex. STR_FROMEND(1) is the last item etc.
+n-th item from the back, ex. STR_FROMEND(1) is the last item (don't try STR_END-1 - it doesn't work!).
 See also 'https://stackoverflow.com/questions/509211/how-slicing-in-python-works' for more information.
 Invalid bounds that would cause the string to be empty, by default do not cause en error, unless __DOOTSTR_SLICE_ERRORS is defined.
 Otherwise, the function treats you like a baby and corrects your bounds to fit inside the string.
@@ -163,55 +164,18 @@ str_t *str_newslice(const char *cstring, size_t beg, size_t end, long step)
     }
 
     size_t clen = strlen(cstring);
-    // beg parameter
-    if (beg == STR_END)
-    {
-        beg = clen;
-    }
-    else if (beg & STR_END) // It's counted from the end
-    {
-        //puts("from behind bitch beg");
-        beg = (beg & ~STR_END);
-        if (beg > clen)
-        {
-            STR_SLICE_ERROR("str_newslice: Beg goes out of bounds from the left side.");
-            beg = 0;
-        }
-        else 
-        {
-            beg = clen - beg;
-        }
-    }
-    else if (beg >= clen)
+    beg = __str_boundIndex(beg, clen); // In case the index is 'from the end'
+    if (beg >= clen)
     {
         STR_SLICE_ERROR("str_newslice: Beg goes out of bounds from the right side.");
         beg = clen - 1;
     }
-    // end parameter
-    if (end == STR_END)
-    {
-        end = clen;
-    }
-    else if (end & STR_END) // It's counted from the end
-    {
-        //puts("from behind bitch end");
-        end = (end & ~STR_END);
-        if (end > clen)
-        {
-            STR_SLICE_ERROR("str_newslice: End goes out of bounds from the left side.");
-            end = 0;
-        }
-        else
-        {
-            end = clen - end;
-        }
-    }
-    else if (end > clen)
+    end = __str_boundIndex(end, clen); // In case the index is 'from the end'
+    if (end > clen)
     {
         STR_SLICE_ERROR("str_newslice: End goes out of bounds from the right side.");
         end = clen;
     }
-
     if (end < beg)
     {
         STR_SLICE_ERROR("str_newslice: End is less than beg - resulting slice is invalid (empty).");
@@ -223,16 +187,16 @@ str_t *str_newslice(const char *cstring, size_t beg, size_t end, long step)
         return str_newfrom("");
     }
 
-    printf("Beg: %ld, end: %ld, step: %ld\n", beg, end, step);
-    size_t sliceLen = 1 + (end - beg - 1) / labs(step); // This is correct I think
-    printf("Slicelen: %ld\n", sliceLen);
+    size_t sliceLen = 1 + (end - beg) / labs(step); // This is correct I think
     str_t *slice = str_new(sliceLen + 1);
-    printf("capacity: %ld\n", slice->capacity);
     size_t ind = (step > 0) ? beg : end - 1;
     size_t added = 0;
+    //printf("Beg: %ld, end: %ld, step: %ld\n", beg, end, step);
+    //printf("Slicelen: %ld\n", sliceLen);
+    //printf("capacity: %ld\n", slice->capacity);
     while (added < sliceLen)
     {
-        printf("Ind: %ld\n", ind);
+        //printf("Ind: %ld\n", ind);
         slice->pstr[added++] = cstring[ind];
         if (step > 0)
         {
@@ -245,7 +209,6 @@ str_t *str_newslice(const char *cstring, size_t beg, size_t end, long step)
     }
     slice->strlen = sliceLen;
     slice->pstr[slice->strlen] = '\0';
-    
     return slice;
 }
 

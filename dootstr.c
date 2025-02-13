@@ -476,6 +476,14 @@ size_t str_remove(str_t *pstr, const char *seq)
     {
         return 0;
     }
+    if (!seq)
+    {
+        STRFAIL("str_remove: The passed address of seq was null.");
+    }
+    if (!(*seq))
+    {
+        return 0;
+    }
     size_t count = str_count(pstr, seq);
     size_t rlen = strlen(seq);
     size_t newLen = pstr->strlen - count *rlen;
@@ -530,6 +538,10 @@ size_t str_removeAny(str_t *pstr, const char *set)
     if (!pstr->pstr)
     {
         return 0;
+    }
+    if (!set)
+    {
+        STRFAIL("str_removeAny: The passed address of set was null.");
     }
     size_t count = str_countAny(pstr, set);
     size_t newLen = pstr->strlen - count;
@@ -832,6 +844,14 @@ size_t str_count(str_t *pstr, const char* seq)
     {
         return 0;
     }
+    if (!seq)
+    {
+        STRFAIL("str_count: The passed address of seq was null.");
+    }
+    if (!(*seq))
+    {
+        STRFAIL("str_count: The passed sequence is empty.");
+    }
     size_t count = 0;
     char *p = pstr->pstr;
     while ((p = strstr(p, seq)) != NULL)
@@ -853,6 +873,14 @@ size_t str_countAny(str_t *pstr, const char* set)
     {
         return 0;
     }
+    if (!set)
+    {
+        STRFAIL("str_countAny: The passed address of set was null.");
+    }
+    if (!(*set))
+    {
+        STRFAIL("str_count: The passed set is empty.");
+    }
     size_t count = 0;
     char *p = pstr->pstr;
     while ((p = strpbrk(p, set)) != NULL)
@@ -871,6 +899,14 @@ size_t str_replace(str_t *pstr, const char *oldval, const char *newval)  // I su
     if (!pstr)
     {
         STRFAIL("str_replace: The passed address was null.");
+    }
+    if (!oldval)
+    {
+        STRFAIL("str_replace: The passed address of oldval was null.");
+    }
+    if (!newval)
+    {
+        STRFAIL("str_replace: The passed address of newval was null.");
     }
     size_t count = str_count(pstr, oldval);
     size_t rlen = strlen(newval), llen = strlen(oldval);
@@ -933,12 +969,22 @@ size_t str_replace(str_t *pstr, const char *oldval, const char *newval)  // I su
     return count;
 }
 
-/*@brief Replaces any of the characters in set with newval. Returns the number of replaced instances. Always causes reallocation.*/
+/*@brief Replaces any of the characters in set with newval. Returns the number of replaced instances. Always causes reallocation.
+NOTE: This *can* be used for removing characters, but isn't recomended as this function causes an unnecessary reallocation. In such cases
+use str_removeAny() instead!*/
 size_t str_replaceAny(str_t *pstr, const char *set, const char *newval)
 {
     if (!pstr)
     {
         STRFAIL("str_replaceAny: The passed address was null.");
+    }
+    if (!set)
+    {
+        STRFAIL("str_replaceAny: The passed address of set was null.");
+    }
+    if (!newval)
+    {
+        STRFAIL("str_replaceAny: The passed address of newval was null.");
     }
     size_t count = str_countAny(pstr, set);
     size_t rlen = strlen(newval);
@@ -1009,6 +1055,10 @@ size_t str_replaceAnyCh(str_t *pstr, const char *set, char c)
     {
         return 0;
     }
+    if (!set)
+    {
+        STRFAIL("str_replaceAnyCh: The passed address of seq was null.");
+    }
     size_t count = 0;
     char *p = pstr->pstr;
     while ((p = strpbrk(p, set)) != NULL)
@@ -1060,17 +1110,152 @@ void str_strip(str_t *pstr)
     pstr->pstr[pstr->strlen - rightoff - leftoff] = '\0';
 }
 
-/*@brief Removes all proceeding and trailing whitespaces.*/
+/*@brief Removes all preceding whitespaces.*/
 void str_lstrip(str_t *pstr)
 {
-
+    if (!pstr)
+    {
+        STRFAIL("str_strip: The passed address of str_t was null.");
+    }
+    if (!pstr->pstr)
+    {
+        return;
+    }
+    size_t leftoff = 0;
+    char *p = pstr->pstr;
+    while (*p && isspace(*p))
+    {
+        ++leftoff;
+        ++p;
+    }
+    if (leftoff == pstr->strlen)
+    {
+        pstr->pstr[0] = '\0';
+        pstr->strlen = 0;
+        return;
+    }
+    if (leftoff > 0)
+    {
+        for (size_t i = leftoff; i < pstr->strlen; ++i)
+        {
+            pstr->pstr[i - leftoff] = pstr->pstr[i];
+        }
+    }
+    pstr->pstr[pstr->strlen - leftoff] = '\0';
 }
-//TODO: Next do striping and investigate what other cleanup fnc could be usefull.
-// Next do indexes, that's simple. Then splits and partitions, that's harder.
+
+/*@brief Removes all trailing whitespaces.*/
+void str_rstrip(str_t *pstr)
+{
+    if (!pstr)
+    {
+        STRFAIL("str_strip: The passed address of str_t was null.");
+    }
+    if (!pstr->pstr)
+    {
+        return;
+    }
+    size_t rightoff = 0;
+    char *p = pstr->pstr + pstr->strlen - 1;
+    while (p >= pstr->pstr && isspace(*p))
+    {
+        ++rightoff;
+        --p;
+    }
+    pstr->pstr[pstr->strlen - rightoff] = '\0';
+}
+//TODO: Investigate what other cleanup fnc could be usefull.
 
 #pragma endregion
 
 #pragma region SPLITTING
+/*@brief Searches the string and returns the index where seq first occurs. -1 otherwise.*/
+ssize_t str_index(str_t *pstr, const char *seq)
+{
+    if (!pstr)
+    {
+        STRFAIL("str_index: The passed address is null.");
+    }
+    if (!pstr->pstr)
+    {
+        return -1;
+    }
+    if (!seq)
+    {
+        STRFAIL("str_index: The passed address of seq is null.");
+    }
+    if (!(*seq))
+    {
+        return 0;
+    }
+    ssize_t found = -1;
+    ssize_t i = 0;
+    const char *ps = seq;
+    while (pstr->pstr[i])
+    {
+        found = i;
+        while (pstr->pstr[i] && pstr->pstr[i] == *ps)
+        {
+            ps++;
+            if (!(*ps))
+            {
+                return found;
+            }
+            i++;
+        }
+        ps = seq;
+        i = found + 1;
+        continue;
+        i++;
+    }
+    return -1;
+}
+
+/*@brief Searches the string and returns the index where seq last occurs. -1 otherwise.*/
+ssize_t str_rindex(str_t *pstr, const char *seq)
+{
+    if (!pstr)
+    {
+        STRFAIL("str_index: The passed address is null.");
+    }
+    if (!pstr->pstr)
+    {
+        return -1;
+    }
+    if (!seq)
+    {
+        STRFAIL("str_rindex: The passed address of seq is null.");
+    }
+    if (!(*seq))
+    {
+        return 0;
+    }
+    ssize_t ending = -1;
+    ssize_t i = pstr->strlen -1;
+    ssize_t rlen = strlen(seq);
+    const char *ps = seq + rlen - 1;
+    while (i >= 0)
+    {
+        ending = i;
+        while (i >= 0 && pstr->pstr[i] == *ps)
+        {
+            ps--;
+            if (ps < seq)
+            {
+                return i;
+            }
+            i--;
+        }
+        ps = seq;
+        i = ending - 1;
+        continue;
+        i--;
+    }
+    return -1;
+}
+
+
+
 // str_t *str_slice(str_t *pstr, ssize_t begin, ssize_t step, ssize_t end)
 // {
 

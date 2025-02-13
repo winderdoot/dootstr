@@ -6,195 +6,195 @@
 #include <string.h>
 #include <ctype.h>
 
-#define DOOTFAIL(source) (perror(source), fprintf(stderr, "DOOTFAIL: %s:%d\n", __FILE__, __LINE__), exit(EXIT_FAILURE))
+#define STRFAIL(source) (perror(source), fprintf(stderr, "STRFAIL: %s:%d\n", __FILE__, __LINE__), exit(EXIT_FAILURE))
 
 #ifdef __DOOTSTR_DEBUG
-#define DOOT_LOG_ALLOC(oldcap, newcap) (printf("Reallocating from: %ld to %ld\n", oldcap, newcap))
+#define STR_LOG_ALLOC(oldcap, newcap) (printf("Reallocating from: %ld to %ld\n", oldcap, newcap))
 #else
-#define DOOT_LOG_ALLOC(oldcap, newcap) 
+#define STR_LOG_ALLOC(oldcap, newcap) 
 #endif
 
-#define DOOT_NEWCAPACITY(oldcap) ((oldcap)*2U)
+#define STR_NEWCAPACITY(oldcap) ((oldcap)*2U)
 
-/** @struct dootstr
+/** @struct str_t
  *  @brief This structure wraps a raw C style char pointer and provides a dynamic string implementation.
- *  Structures of this type are to be passed to dootstr functions. The dootstr struct always allocates it's own memory and
+ *  Structures of this type are to be passed to str_* functions. The str_t struct always allocates it's own memory and
  *  keeps ownership of it's memory. The raw char pointer can be passed to standard library functions but, the pointer shouldn't be freed
- *  nor reallocated.
+ *  nor reallocated manually by the user.
  */
-typedef struct dootstr
+typedef struct str
 {
     char *pstr; /*Null terminated pointer to the char data*/
     size_t strlen; /*Number of stored readable characters*/
     size_t capacity; /*Current size of the allocated memory block*/
 
-} dootstr_t;
+} str_t;
 
 #pragma region ALLOCATION
 /*
-@brief Reallocates the memory block of the dootstr, copying the old contents. If the new capacity is to small to contain the old contents,
+@brief Reallocates the memory block of the str_t, copying the old contents. If the new capacity is to small to contain the old contents,
 some data will be lost, however the null terminator will always be inserted.
 */
-void doot_realloc(dootstr_t *pdoot, size_t newcap)
+void str_realloc(str_t *pstr, size_t newcap)
 {
-    DOOT_LOG_ALLOC(pdoot->capacity, newcap);
+    STR_LOG_ALLOC(pstr->capacity, newcap);
     if (newcap == 0)
     {
-        DOOTFAIL("doot_realloc: Capacity of 0 is not allowed.");
+        STRFAIL("str_realloc: Capacity of 0 is not allowed.");
     }
-    if (!pdoot)
+    if (!pstr)
     {
-        DOOTFAIL("doot_realloc: The address of dootstr pointer was null.");
+        STRFAIL("str_realloc: The address of str_t pointer was null.");
     }
-    pdoot->pstr = (char*)realloc(pdoot->pstr, newcap);
-    if (!pdoot->pstr)
+    pstr->pstr = (char*)realloc(pstr->pstr, newcap);
+    if (!pstr->pstr)
     {
-        DOOTFAIL("realloc");
+        STRFAIL("realloc");
     }
-    pdoot->capacity = newcap;
-    if (pdoot->capacity < pdoot->strlen + 1) // Need to insert new null terminator
+    pstr->capacity = newcap;
+    if (pstr->capacity < pstr->strlen + 1) // Need to insert new null terminator
     {
-        pdoot->pstr[pdoot->capacity - 1] = '\0';
-        pdoot->strlen = pdoot->capacity - 1;
+        pstr->pstr[pstr->capacity - 1] = '\0';
+        pstr->strlen = pstr->capacity - 1;
     }
 }
 
 /*@brief Returns a pointer to a string initialized with a c-style string literal.*/
-dootstr_t *doot_newfrom(const char *cstring)
+str_t *str_newfrom(const char *cstring)
 {
-    dootstr_t *pdoot = (dootstr_t*)malloc(sizeof(dootstr_t));
-    if (!pdoot)
+    str_t *pstr = (str_t*)malloc(sizeof(str_t));
+    if (!pstr)
     {
-        DOOTFAIL("malloc");
+        STRFAIL("malloc");
     }
-    pdoot->pstr = strdup(cstring);
-    if (!pdoot->pstr)
+    pstr->pstr = strdup(cstring);
+    if (!pstr->pstr)
     {
-        DOOTFAIL("strdup");
+        STRFAIL("strdup");
     }
-    pdoot->strlen = strlen(cstring);
-    pdoot->capacity = pdoot->strlen + 1;
-    return pdoot;
+    pstr->strlen = strlen(cstring);
+    pstr->capacity = pstr->strlen + 1;
+    return pstr;
 }
 
 /*@brief Returns a pointer to a newly initialized empty string with a memory block of a given capacity.*/
-dootstr_t *doot_new(size_t capacity)
+str_t *str_new(size_t capacity)
 {
-    dootstr_t *pdoot = (dootstr_t*)malloc(sizeof(dootstr_t));
-    if (!pdoot)
+    str_t *pstr = (str_t*)malloc(sizeof(str_t));
+    if (!pstr)
     {
-        DOOTFAIL("malloc");
+        STRFAIL("malloc");
     }
-    pdoot->strlen = 0;
-    pdoot->pstr = NULL;
-    pdoot->capacity = capacity;
-    if (pdoot->capacity != 0)
+    pstr->strlen = 0;
+    pstr->pstr = NULL;
+    pstr->capacity = capacity;
+    if (pstr->capacity != 0)
     {
-        pdoot->pstr = (char*)malloc(sizeof(char)*pdoot->capacity);
-        if (!pdoot->pstr)
+        pstr->pstr = (char*)malloc(sizeof(char)*pstr->capacity);
+        if (!pstr->pstr)
         {
-            DOOTFAIL("malloc");
+            STRFAIL("malloc");
         }
     }
-    return pdoot;
+    return pstr;
 }
 
 /*@brief Create a new doostr by taking ownership of an existing heap allocated c-style string. Other means of construction are
 preferable, this is only for unique occasions.*/
-dootstr_t *doot_steal(char *cstring)
+str_t *str_steal(char *cstring)
 {
-    dootstr_t *pdoot = (dootstr_t*)malloc(sizeof(dootstr_t));
-    if (!pdoot)
+    str_t *pstr = (str_t*)malloc(sizeof(str_t));
+    if (!pstr)
     {
-        DOOTFAIL("malloc");
+        STRFAIL("malloc");
     }
-    pdoot->pstr = cstring;
-    pdoot->strlen = strlen(cstring);
-    pdoot->capacity = pdoot->strlen + 1;
-    return pdoot;
+    pstr->pstr = cstring;
+    pstr->strlen = strlen(cstring);
+    pstr->capacity = pstr->strlen + 1;
+    return pstr;
 }
 
-void doot_free(dootstr_t **ppdoot)
+void str_free(str_t **ppstr)
 {
-    if (!ppdoot)
+    if (!ppstr)
     {
-        DOOTFAIL("doot_free: The address of a dootstr pointer variable was null. Remember to pass an address (&variable) of a pointer variable to this function.");
+        STRFAIL("str_free: The address of a str_t pointer variable was null. Remember to pass an address (&variable) of a pointer variable to this function.");
     }
-    if (*ppdoot)
+    if (*ppstr)
     {
-        if ((*ppdoot)->pstr)
+        if ((*ppstr)->pstr)
         {
-            free((*ppdoot)->pstr);
+            free((*ppstr)->pstr);
         }
-        free(*ppdoot);
+        free(*ppstr);
     }
-    *ppdoot = NULL;
+    *ppstr = NULL;
 }
 
 /*
-This function is only to be used on stack allocated dootstr objects. It handles deallocating their memory. 
-@param[in] pdoot A pointer to a stack allocated dootstrto be destroyed.
+This function is only to be used on stack allocated str_t objects. It handles deallocating their memory. 
+@param[in] pstr A pointer to a stack allocated str_t to be destroyed.
 */
-void doot_destroy(dootstr_t *pdoot)
+void str_destroy(str_t *pstr)
 {
-    if (!pdoot)
+    if (!pstr)
     {
-        DOOTFAIL("doot_destroy: The address of a dootstr was null. Cannot destroy it.");
+        STRFAIL("str_destroy: The address of a str_t was null. Cannot destroy it.");
     }
-    if (pdoot->pstr)
+    if (pstr->pstr)
     {
-        free(pdoot->pstr);
+        free(pstr->pstr);
     }
-    pdoot->strlen = 0;
-    pdoot->capacity = 0;
+    pstr->strlen = 0;
+    pstr->capacity = 0;
 }
 
 #pragma endregion
 
 #pragma region MODIFICATION
 
-void doot_clear(dootstr_t *pdoot)
+void str_clear(str_t *pstr)
 {
-    doot_destroy(pdoot);
+    str_destroy(pstr);
 }
 
-void doot_assign_c(dootstr_t *pdoot, const char *cstring)
+void str_assign_c(str_t *pstr, const char *cstring)
 {
     if (!cstring)
     {
-        DOOTFAIL("doot_assign_c: Cannot assign to null char pointer.");
+        STRFAIL("str_assign_c: Cannot assign to null char pointer.");
     }
-    if (!pdoot)
+    if (!pstr)
     {
-        DOOTFAIL("doot_assign_c: The address of a dootstr was null.");
+        STRFAIL("str_assign_c: The address of a str_t was null.");
     }
-    if (pdoot->pstr)
+    if (pstr->pstr)
     {
-        if (pdoot->pstr == cstring)
+        if (pstr->pstr == cstring)
         {
             return;
         }
-        free(pdoot->pstr);
+        free(pstr->pstr);
     }
     
-    pdoot->strlen = strlen(cstring);
-    pdoot->pstr = strdup(cstring);
-    pdoot->capacity = pdoot->strlen + 1;
-    if (!pdoot->pstr)
+    pstr->strlen = strlen(cstring);
+    pstr->pstr = strdup(cstring);
+    pstr->capacity = pstr->strlen + 1;
+    if (!pstr->pstr)
     {
-        DOOTFAIL("doot_assing_c: strdup");
+        STRFAIL("str_assing_c: strdup");
     }
 }
 
-void doot_assign(dootstr_t *pleft, const dootstr_t *pright)
+void str_assign(str_t *pleft, const str_t *pright)
 {
     if (!pright)
     {
-        DOOTFAIL("doot_assign: Cannot assign a null dootstring to another.");
+        STRFAIL("str_assign: Cannot assign a null str_t to another.");
     }
     if (!pleft)
     {
-        DOOTFAIL("doot_assign: The address of the left dootstr was null.");
+        STRFAIL("str_assign: The address of the left str_t was null.");
     }
     if (pleft == pright)
     {
@@ -209,44 +209,44 @@ void doot_assign(dootstr_t *pleft, const dootstr_t *pright)
     pleft->capacity = pleft->strlen + 1;
     if (!pleft->pstr)
     {
-        DOOTFAIL("strdup");
+        STRFAIL("strdup");
     }
 }
 
-void doot_append_c(dootstr_t *pdoot, const char *cstring)
+void str_append_c(str_t *pstr, const char *cstring)
 {
-    if (!pdoot || !cstring)
+    if (!pstr || !cstring)
     {
-        DOOTFAIL("doot_append: The address of a dootstr or a c string was null.");
+        STRFAIL("str_append: The address of a str_t or a c string was null.");
     }
     size_t rlen = strlen(cstring);
-    if (!pdoot->pstr)
+    if (!pstr->pstr)
     {
-        doot_realloc(pdoot, DOOT_NEWCAPACITY(rlen + 1));
-        pdoot->strlen = 0; // It should be zero already, just making sure tho
-        if (!pdoot->pstr)
+        str_realloc(pstr, STR_NEWCAPACITY(rlen + 1));
+        pstr->strlen = 0; // It should be zero already, just making sure tho
+        if (!pstr->pstr)
         {
-            DOOTFAIL("realloc");
+            STRFAIL("realloc");
         }
     }
-    else if (pdoot->capacity < pdoot->strlen + rlen + 1)
+    else if (pstr->capacity < pstr->strlen + rlen + 1)
     {
-        doot_realloc(pdoot, DOOT_NEWCAPACITY(pdoot->strlen + rlen + 1));
-        if (!pdoot->pstr)
+        str_realloc(pstr, STR_NEWCAPACITY(pstr->strlen + rlen + 1));
+        if (!pstr->pstr)
         {
-            DOOTFAIL("realloc");
+            STRFAIL("realloc");
         }
     }
 
-    memcpy(pdoot->pstr + pdoot->strlen, cstring, rlen + 1);
-    pdoot->strlen = pdoot->strlen + rlen; 
+    memcpy(pstr->pstr + pstr->strlen, cstring, rlen + 1);
+    pstr->strlen = pstr->strlen + rlen; 
 }
 
-void doot_append(dootstr_t *pleft, const dootstr_t *pright)
+void str_append(str_t *pleft, const str_t *pright)
 {
     if (!pleft || !pright)
     {
-        DOOTFAIL("doot_append: The address of a dootstr was null.");
+        STRFAIL("str_append: The address of a str_t was null.");
     }
     if (!pright->pstr)
     {
@@ -254,19 +254,19 @@ void doot_append(dootstr_t *pleft, const dootstr_t *pright)
     }
     if (!pleft->pstr)
     {
-        doot_realloc(pleft, DOOT_NEWCAPACITY(pright->strlen + 1));
+        str_realloc(pleft, STR_NEWCAPACITY(pright->strlen + 1));
         pleft->strlen = 0; // It should be zero already, just making sure tho
         if (!pleft->pstr)
         {
-            DOOTFAIL("realloc");
+            STRFAIL("realloc");
         }
     }
     else if (pleft->capacity < pleft->strlen + pright->strlen + 1)
     {
-        doot_realloc(pleft, DOOT_NEWCAPACITY(pleft->strlen + pright->strlen + 1));
+        str_realloc(pleft, STR_NEWCAPACITY(pleft->strlen + pright->strlen + 1));
         if (!pleft->pstr)
         {
-            DOOTFAIL("realloc");
+            STRFAIL("realloc");
         }
     }
     memcpy(pleft->pstr + pleft->strlen, pright->pstr, pright->strlen + 1);
@@ -274,99 +274,99 @@ void doot_append(dootstr_t *pleft, const dootstr_t *pright)
 }
 
 /*
-@brief Inserts a cstring starting at a given position in the dootstr object. If the dootstr is empty only position 0 is valid.
+@brief Inserts a cstring starting at a given position in the str_t object. If the str_t is empty only position 0 is valid.
 */
-void doot_insert_c(dootstr_t *pdoot, const char *cstring, size_t position)
+void str_insert_c(str_t *pstr, const char *cstring, size_t position)
 {
     // if (position < 0)
     // {
-    //     DOOTFAIL("doot_insert_c: The position cannot be negative.");
+    //     DOOTFAIL("str_insert_c: The position cannot be negative.");
     // }
-    if (!pdoot || !cstring)
+    if (!pstr || !cstring)
     {
-        DOOTFAIL("doot_insert_c: The address of a dootstr or a c string was null.");
+        STRFAIL("str_insert_c: The address of a str_t or a c string was null.");
     }
-    if (position > pdoot->strlen)
+    if (position > pstr->strlen)
     {
-        DOOTFAIL("doot_insert_c: Position has to be no greater than string length.");
+        STRFAIL("str_insert_c: Position has to be no greater than string length.");
     }
-    if (position == pdoot->strlen)
+    if (position == pstr->strlen)
     {
-        doot_append_c(pdoot, cstring);
+        str_append_c(pstr, cstring);
         return;
     }
     size_t rlen = strlen(cstring); 
-    if ((!pdoot->pstr || pdoot->strlen == 0) && position != 0)
+    if ((!pstr->pstr || pstr->strlen == 0) && position != 0)
     {
-        DOOTFAIL("doot_insert_c: Cannot insert at a non zero position to an empty string.");
+        STRFAIL("str_insert_c: Cannot insert at a non zero position to an empty string.");
     }
     // Block is empty - allocating new block //
-    if (!pdoot->pstr)
+    if (!pstr->pstr)
     {
-        doot_realloc(pdoot, DOOT_NEWCAPACITY(rlen + 1));
-        memcpy(pdoot->pstr, cstring, rlen + 1);
-        pdoot->strlen = rlen;
+        str_realloc(pstr, STR_NEWCAPACITY(rlen + 1));
+        memcpy(pstr->pstr, cstring, rlen + 1);
+        pstr->strlen = rlen;
         return;
     }
     // Block is too small, allocating new block and manually moving //
-    if (pdoot->capacity < pdoot->strlen + rlen + 1)
+    if (pstr->capacity < pstr->strlen + rlen + 1)
     {
-        size_t newcap = DOOT_NEWCAPACITY(pdoot->strlen + rlen + 1);
-        DOOT_LOG_ALLOC(pdoot->capacity, newcap);
+        size_t newcap = STR_NEWCAPACITY(pstr->strlen + rlen + 1);
+        STR_LOG_ALLOC(pstr->capacity, newcap);
         char *newblock = (char*)malloc(sizeof(char)*newcap);  
         if (!newblock)
         {
-            DOOTFAIL("malloc");
+            STRFAIL("malloc");
         }
-        memcpy(newblock, pdoot->pstr, position);
+        memcpy(newblock, pstr->pstr, position);
         memcpy(newblock + position, cstring, rlen);
-        memcpy(newblock + position + rlen, pdoot->pstr + position, pdoot->strlen - position);
-        newblock[pdoot->strlen + rlen] = '\0';
-        free(pdoot->pstr);
-        pdoot->pstr = newblock;
-        pdoot->strlen = pdoot->strlen + rlen;
-        pdoot->capacity = newcap;
+        memcpy(newblock + position + rlen, pstr->pstr + position, pstr->strlen - position);
+        newblock[pstr->strlen + rlen] = '\0';
+        free(pstr->pstr);
+        pstr->pstr = newblock;
+        pstr->strlen = pstr->strlen + rlen;
+        pstr->capacity = newcap;
         return;
     }
     // Block is big enough, just moving characters around //
     // Ok so there was a horrendous bug involving overflow when comparing an int to an ssize_t.
     // Since then the index and position are of type ssize_t.
-    for (ssize_t i = pdoot->strlen; i >= (ssize_t)position; --i)
+    for (ssize_t i = pstr->strlen; i >= (ssize_t)position; --i)
     {
-        pdoot->pstr[i + rlen] = pdoot->pstr[i];
+        pstr->pstr[i + rlen] = pstr->pstr[i];
     }
-    memcpy(pdoot->pstr + position, cstring, rlen);
-    pdoot->strlen = pdoot->strlen + rlen;
-    pdoot->pstr[pdoot->strlen] = '\0';
+    memcpy(pstr->pstr + position, cstring, rlen);
+    pstr->strlen = pstr->strlen + rlen;
+    pstr->pstr[pstr->strlen] = '\0';
 }
 
-void doot_insert(dootstr_t *pleft, dootstr_t *pright, size_t position)
+void str_insert(str_t *pleft, str_t *pright, size_t position)
 {
     // if (position < 0)
     // {
-    //     DOOTFAIL("doot_insert: The position cannot be negative.");
+    //     DOOTFAIL("str_insert: The position cannot be negative.");
     // }
     if (!pleft || !pright)
     {
-        DOOTFAIL("doot_insert: The address of a dootstr was null.");
+        STRFAIL("str_insert: The address of a str_t was null.");
     }
     if (position > pleft->strlen)
     {
-        DOOTFAIL("doot_insert: Position has to be no greater than string length.");
+        STRFAIL("str_insert: Position has to be no greater than string length.");
     }
     if (position == pleft->strlen)
     {
-        doot_append(pleft, pright);
+        str_append(pleft, pright);
         return;
     }
     if ((!pleft->pstr || pleft->strlen == 0) && position != 0)
     {
-        DOOTFAIL("doot_insert_c: Cannot insert at a non zero position to an empty string.");
+        STRFAIL("str_insert_c: Cannot insert at a non zero position to an empty string.");
     }
     // Block is empty - allocating new block //
     if (!pleft->pstr)
     {
-        doot_realloc(pleft, DOOT_NEWCAPACITY(pright->strlen + 1));
+        str_realloc(pleft, STR_NEWCAPACITY(pright->strlen + 1));
         memcpy(pleft->pstr, pright->pstr, pright->strlen + 1);
         pleft->strlen = pright->strlen;
         return;
@@ -374,12 +374,12 @@ void doot_insert(dootstr_t *pleft, dootstr_t *pright, size_t position)
     // Block is too small, allocating new block and manually moving //
     if (pleft->capacity < pleft->strlen + pright->strlen + 1)
     {
-        size_t newcap = DOOT_NEWCAPACITY(pleft->strlen + pright->strlen + 1);
-        DOOT_LOG_ALLOC(pleft->capacity, newcap);
+        size_t newcap = STR_NEWCAPACITY(pleft->strlen + pright->strlen + 1);
+        STR_LOG_ALLOC(pleft->capacity, newcap);
         char *newblock = (char*)malloc(sizeof(char)*newcap);  
         if (!newblock)
         {
-            DOOTFAIL("malloc");
+            STRFAIL("malloc");
         }
         memcpy(newblock, pleft->pstr, position);
         memcpy(newblock + position, pright->pstr, pright->strlen);
@@ -406,63 +406,63 @@ void doot_insert(dootstr_t *pleft, dootstr_t *pright, size_t position)
 /*
 @brief Allocates a new doostr object containing the concatenated string. Not sure why someone would use this, but ok.
 */
-dootstr_t *doot_concat(dootstr_t *pleft, dootstr_t *pright)
+str_t *str_concat(str_t *pleft, str_t *pright)
 {
     if (!pleft || !pright)
     {
-        DOOTFAIL("doot_concat: One of the argument dootstrs was null.");
+        STRFAIL("str_concat: One of the argument str_t was null.");
     }
-    dootstr_t *pdoot = doot_new(DOOT_NEWCAPACITY(pleft->strlen + pright->strlen + 1));
+    str_t *pstr = str_new(STR_NEWCAPACITY(pleft->strlen + pright->strlen + 1));
     // From what I've read, calling memcpy(_, NULL, 0) could violate the standard, hence the check
     if (pleft->pstr)
     {
-        memcpy(pdoot->pstr, pleft->pstr, pleft->strlen); 
+        memcpy(pstr->pstr, pleft->pstr, pleft->strlen); 
     }
     if (pright->pstr)
     {
-        memcpy(pdoot->pstr + pleft->strlen, pright->pstr, pright->strlen);
+        memcpy(pstr->pstr + pleft->strlen, pright->pstr, pright->strlen);
     }
-    pdoot->pstr[pleft->strlen + pright->strlen] = '\0';
-    return pdoot;
+    pstr->pstr[pleft->strlen + pright->strlen] = '\0';
+    return pstr;
 }
 
 /*
-@brief Removes a substring from a dootstr.
-@param[in] pdoot string object
+@brief Removes a substring from a str_t.
+@param[in] pstr string object
 @param[in] position position to where the removed substr begins
 @param[in] length the length of the substring to remove. Must be at least 1.
 NOTE: As of currently I can't be bothered to implement safety measures against potential overflow
 caused by ex. position + length. Fix it later.
 */
-void doot_cut(dootstr_t *pdoot, size_t position, size_t length)
+void str_cut(str_t *pstr, size_t position, size_t length)
 {
-    if (!pdoot)
+    if (!pstr)
     {
-        DOOTFAIL("doot_remove: The passed address was null.");
+        STRFAIL("str_remove: The passed address was null.");
     }
     if (length < 1)
     {
         return;
     }
-    if (position + 1 > pdoot->strlen || position + length > pdoot->strlen)
+    if (position + 1 > pstr->strlen || position + length > pstr->strlen)
     {
-        DOOTFAIL("doot_remove: The substring to be removed goes out of bounds of the string.");
+        STRFAIL("str_remove: The substring to be removed goes out of bounds of the string.");
     }
-    for (ssize_t i = position + length; i <= pdoot->strlen; ++i) // Moving hte null terminator as well
+    for (ssize_t i = position + length; i <= pstr->strlen; ++i) // Moving hte null terminator as well
     {
-        pdoot->pstr[i - length] = pdoot->pstr[i];
+        pstr->pstr[i - length] = pstr->pstr[i];
     }
-    pdoot->strlen -= length;
+    pstr->strlen -= length;
 }
 
 /*@brief Removes all occurances of subs from the string. Returns number of removed instances.*/
-size_t doot_remove(dootstr_t *pdoot, const char *subs)
+size_t str_remove(str_t *pstr, const char *subs)
 {
     return 0;
 }
 
 /*@brief Removes all occurances of char c from the string. Returns number of removed instances.*/
-size_t doot_removeCh(dootstr_t *pdoot, char c)
+size_t str_removeCh(str_t *pstr, char c)
 {
     return 0;
 }
@@ -473,13 +473,13 @@ size_t doot_removeCh(dootstr_t *pdoot, char c)
 #pragma endregion
 
 #pragma region TRANSFORM
-void doot_upper(dootstr_t *pdoot)
+void str_upper(str_t *pstr)
 {
-    if (!pdoot)
+    if (!pstr)
     {
-        DOOTFAIL("doot_upper: The passed address was null.");
+        STRFAIL("str_upper: The passed address was null.");
     }
-    char *p = pdoot->pstr;
+    char *p = pstr->pstr;
     while (*p)
     {
         *p = toupper(*p); 
@@ -487,13 +487,13 @@ void doot_upper(dootstr_t *pdoot)
     }
 }
 
-void doot_lower(dootstr_t *pdoot)
+void str_lower(str_t *pstr)
 {
-    if (!pdoot)
+    if (!pstr)
     {
-        DOOTFAIL("doot_upper: The passed address was null.");
+        STRFAIL("str_upper: The passed address was null.");
     }
-    char *p = pdoot->pstr;
+    char *p = pstr->pstr;
     while (*p)
     {
         *p = tolower(*p);
@@ -501,17 +501,17 @@ void doot_lower(dootstr_t *pdoot)
     }
 }
 
-void swapcase(dootstr_t *pdoot)
+void str_swapcase(str_t *pstr)
 {
-    if (!pdoot)
+    if (!pstr)
     {
-        DOOTFAIL("doot_replaceAnyCh: The passed address was null.");
+        STRFAIL("str_swapcase: The passed address was null.");
     }
-    if (!pdoot->pstr)
+    if (!pstr->pstr)
     {
         return;
     }
-    char *p = pdoot->pstr;
+    char *p = pstr->pstr;
     while (*p)
     {
         if (isupper(*p))
@@ -527,18 +527,18 @@ void swapcase(dootstr_t *pdoot)
 }
 
 /*@brief Counts how many times a sequence is found in a string.*/
-size_t doot_count(dootstr_t *pdoot, const char* seq)
+size_t str_count(str_t *pstr, const char* seq)
 {
-    if (!pdoot)
+    if (!pstr)
     {
-        DOOTFAIL("doot_replaceAny: The passed address was null.");
+        STRFAIL("str_replaceAny: The passed address was null.");
     }
-    if (!pdoot->pstr)
+    if (!pstr->pstr)
     {
         return 0;
     }
     size_t count = 0;
-    char *p = pdoot->pstr;
+    char *p = pstr->pstr;
     while ((p = strstr(p, seq)) != NULL)
     {
         count++;
@@ -548,18 +548,18 @@ size_t doot_count(dootstr_t *pdoot, const char* seq)
 }
 
 /*@brief Counts how many times a character from a set is found in the string.*/
-size_t doot_countAny(dootstr_t *pdoot, const char* set)
+size_t str_countAny(str_t *pstr, const char* set)
 {
-    if (!pdoot)
+    if (!pstr)
     {
-        DOOTFAIL("doot_replaceAny: The passed address was null.");
+        STRFAIL("str_replaceAny: The passed address was null.");
     }
-    if (!pdoot->pstr)
+    if (!pstr->pstr)
     {
         return 0;
     }
     size_t count = 0;
-    char *p = pdoot->pstr;
+    char *p = pstr->pstr;
     while ((p = strpbrk(p, set)) != NULL)
     {
         count++;
@@ -569,44 +569,44 @@ size_t doot_countAny(dootstr_t *pdoot, const char* set)
 }
 
 /*@brief Replaces each full occurance of oldval with newval. Returns the number of replaced instances. Always causes reallocation.*/
-size_t doot_replace(dootstr_t *pdoot, const char *oldval, const char *newval)  // I suck at C, debugging this was hell...
+size_t str_replace(str_t *pstr, const char *oldval, const char *newval)  // I suck at C, debugging this was hell...
 {
-    if (!pdoot)
+    if (!pstr)
     {
-        DOOTFAIL("doot_replace: The passed address was null.");
+        STRFAIL("str_replace: The passed address was null.");
     }
-    size_t count = doot_count(pdoot, oldval);
+    size_t count = str_count(pstr, oldval);
     size_t rlen = strlen(newval), llen = strlen(oldval);
-    size_t newLen = (rlen > llen) ? pdoot->strlen + count*(rlen-llen) : pdoot->strlen - count*(llen-rlen);
+    size_t newLen = (rlen > llen) ? pstr->strlen + count*(rlen-llen) : pstr->strlen - count*(llen-rlen);
     size_t *offsets = (size_t*)malloc(sizeof(size_t)*count);
     if (!offsets)
     {
-        DOOTFAIL("malloc");
+        STRFAIL("malloc");
     }
     size_t i = 0;
-    char *p = pdoot->pstr;
+    char *p = pstr->pstr;
     while ((p = strstr(p, oldval)) != NULL)
     {
-        offsets[i++] = p - pdoot->pstr;
+        offsets[i++] = p - pstr->pstr;
         p += llen;
     }
 
     char *newblock;
     size_t blocksize;
-    if (pdoot->capacity < newLen + 1)
+    if (pstr->capacity < newLen + 1)
     {
         blocksize = newLen + 1;
     }
     else
     {
-        blocksize = pdoot->capacity;
+        blocksize = pstr->capacity;
     }
     newblock = (char*)malloc(sizeof(char)*blocksize);
     memset(newblock, 0, blocksize);
-    DOOT_LOG_ALLOC(pdoot->capacity, blocksize);
+    STR_LOG_ALLOC(pstr->capacity, blocksize);
     if (!newblock)
     {
-        DOOTFAIL("malloc");
+        STRFAIL("malloc");
     }
 
     i = 0;
@@ -623,63 +623,63 @@ size_t doot_replace(dootstr_t *pdoot, const char *oldval, const char *newval)  /
         }
         else
         {
-            newblock[i++] = pdoot->pstr[oldpos];
+            newblock[i++] = pstr->pstr[oldpos];
             oldpos++;
         }   
     }
     //newblock[blocksize-1] = '\0';
-    free(pdoot->pstr);
+    free(pstr->pstr);
     free(offsets);
-    pdoot->pstr = newblock;
-    pdoot->capacity = blocksize;
-    pdoot->strlen = newLen;
+    pstr->pstr = newblock;
+    pstr->capacity = blocksize;
+    pstr->strlen = newLen;
     return count;
 }
 
 /*@brief Replaces any of the characters in set with newval. Returns the number of replaced instances. Always causes reallocation.*/
-size_t doot_replaceAny(dootstr_t *pdoot, const char *set, const char *newval)
+size_t str_replaceAny(str_t *pstr, const char *set, const char *newval)
 {
-    if (!pdoot)
+    if (!pstr)
     {
-        DOOTFAIL("doot_replaceAny: The passed address was null.");
+        STRFAIL("str_replaceAny: The passed address was null.");
     }
-    size_t count = doot_countAny(pdoot, set);
+    size_t count = str_countAny(pstr, set);
     size_t rlen = strlen(newval);
     size_t extraChars = count * rlen - count; // Additional needed characters
     size_t *offsets = (size_t*)malloc(sizeof(size_t)*count);
     if (!offsets)
     {
-        DOOTFAIL("malloc");
+        STRFAIL("malloc");
     }
     size_t i = 0;
-    char *p = pdoot->pstr;
+    char *p = pstr->pstr;
     while ((p = strpbrk(p, set)) != NULL)
     {
-        offsets[i++] = p - pdoot->pstr;
+        offsets[i++] = p - pstr->pstr;
         p++;
     }
 
     char *newblock;
     size_t blocksize;
-    if (pdoot->capacity < pdoot->strlen + extraChars + 1)
+    if (pstr->capacity < pstr->strlen + extraChars + 1)
     {
-        blocksize = pdoot->strlen + extraChars + 1;
+        blocksize = pstr->strlen + extraChars + 1;
     }
     else
     {
-        blocksize = pdoot->capacity;
+        blocksize = pstr->capacity;
     }
     newblock = (char*)malloc(sizeof(char)*blocksize);
-    DOOT_LOG_ALLOC(pdoot->capacity, blocksize);
+    STR_LOG_ALLOC(pstr->capacity, blocksize);
     if (!newblock)
     {
-        DOOTFAIL("malloc");
+        STRFAIL("malloc");
     }
 
     i = 0;
     size_t indOff = 0;
     size_t oldpos = 0;
-    while (i < pdoot->strlen + extraChars + 1) // Plus 1 to copy '/0'
+    while (i < pstr->strlen + extraChars + 1) // Plus 1 to copy '/0'
     {
         if (indOff < count && oldpos == offsets[indOff])
         {
@@ -689,31 +689,31 @@ size_t doot_replaceAny(dootstr_t *pdoot, const char *set, const char *newval)
         }
         else
         {
-            newblock[i++] = pdoot->pstr[oldpos];
+            newblock[i++] = pstr->pstr[oldpos];
         }
         oldpos++;
     }
-    free(pdoot->pstr);
+    free(pstr->pstr);
     free(offsets);
-    pdoot->pstr = newblock;
-    pdoot->capacity = blocksize;
-    pdoot->strlen = pdoot->strlen + extraChars;
+    pstr->pstr = newblock;
+    pstr->capacity = blocksize;
+    pstr->strlen = pstr->strlen + extraChars;
     return count;
 }
 
 /*@brief Replaces any of the characters in set with a char c. Returns the number of replaced instances.*/
-size_t doot_replaceAnyCh(dootstr_t *pdoot, const char *set, char c)
+size_t str_replaceAnyCh(str_t *pstr, const char *set, char c)
 {
-    if (!pdoot)
+    if (!pstr)
     {
-        DOOTFAIL("doot_replaceAnyCh: The passed address was null.");
+        STRFAIL("str_replaceAnyCh: The passed address was null.");
     }
-    if (!pdoot->pstr)
+    if (!pstr->pstr)
     {
         return 0;
     }
     size_t count = 0;
-    char *p = pdoot->pstr;
+    char *p = pstr->pstr;
     while ((p = strpbrk(p, set)) != NULL)
     {
         *p = c;
@@ -726,7 +726,7 @@ size_t doot_replaceAnyCh(dootstr_t *pdoot, const char *set, char c)
 #pragma endregion
 
 #pragma region SPLITTING
-// dootstr_t *doot_slice(dootstr_t *pdoot, ssize_t begin, ssize_t step, ssize_t end)
+// str_t *str_slice(str_t *pstr, ssize_t begin, ssize_t step, ssize_t end)
 // {
 
 // }
@@ -734,14 +734,14 @@ size_t doot_replaceAnyCh(dootstr_t *pdoot, const char *set, char c)
 typedef struct dootview
 {
     int x;
-    // Struct that contains state of a dootstr search, view, tokenization or alike
+    // Struct that contains state of a str_t search, view, tokenization or alike
 } dootview_t;
 
 /* HOW IT'S MEANT TO BE USED:
 dootview_t view;
-doot_setview(&view, dootstr_t string);
+str_setview(&view, str_t string);
 for ...
-    dootstr_t *token = doot_nextok(&view, delimset)
+    str_t *token = str_nextok(&view, delimset)
 
 */
 #pragma endregion

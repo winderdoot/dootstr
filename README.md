@@ -11,18 +11,25 @@ The general rule for allocating memory, is that when a method that expands the s
 realocate to a size twice as big as the amount it needs in that moment. In that regard it's simillar to most popular dynamic vector implementations. The are exceptions to this - some methods that only somewhat modify the string and end up needing more memory, will only allocate the exact amount needed (ex. ```str_replace()``` and it's variants).  
 To directly control the amount of memory used, use ```str_new(size_t capacity)``` to create a string with a certain amount of memory preallocated. Alternatively directly use ```str_realloc(size_t newCapacity)``` to reallocate the string's memory to a new size. This can be used to trim the string and free up unused memory, however it depends on the standard ```realloc()``` function whether or not this will just shorten the block or cause a full reallocation. Use it wisely.  
 
+## Issues I'm aware of
+
+Currently I'm not guarding against allocating to much memory. The capacity type of size_t is big, but not infinite. Too bad.
+Another issue is the usage of ssize_t for indexes that could be -1. It's Unix only and not part of the C standard. Too bad.
+The C language doesn't include 
+
 ## TODO
+
+A method for construction from a pointer + length (checking for out out bounds)
 
 slice_view
 slice_copy
 
-split() rsplit()
 partition() rpartition()
 splitlines()
 join()
+split => returns a string array with a size
+tokenize => simillar to strtok
 other python like methods
-
-index() => index_c, index
 
 strip(), lstrip(), rstrip()
 format()

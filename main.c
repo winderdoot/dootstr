@@ -3,8 +3,7 @@
 
 int main()
 {
-    str_t *s1 = str_newfrom("aabaa");
-    printf("%ld\n", str_rindex(s1, "aa"));
+    str_t *s1 = str_newslice("wtf", STR_FROMEND(2), STR_FROMEND(1), 1);
     str_free(&s1);
     
     return EXIT_SUCCESS;

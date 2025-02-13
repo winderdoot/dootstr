@@ -21,6 +21,15 @@ It works on my machine.
 #define STR_LOG_ALLOC(oldcap, newcap) 
 #endif
 
+#ifdef __DOOTSTR_SLICE_ERRORS
+#define STR_SLICE_ERROR(message) (fprintf(stderr, "STRFAIL: %s:%d\n%s\n", __FILE__, __LINE__, message), exit(EXIT_FAILURE))
+#else
+#define STR_SLICE_ERROR(message)
+#endif
+
+#define STR_END ((size_t)1 << (__SIZE_WIDTH__ - 1)) // This is fucking trash
+#define STR_FROMEND(ind) (STR_END | (size_t)ind)    // the most significant bit indicates that the index is from the back
+
 #define STR_NEWCAPACITY(oldcap) ((oldcap)*2U)
 
 /** @struct str_t
@@ -104,6 +113,91 @@ str_t *str_new(size_t capacity)
         }
     }
     return pstr;
+}
+
+// TODO: Maybe redesign this hot garbage function and change all int types to fixed width??? No? Ok. Fine.
+/*@brief Returns a pointer to a new string populated with characters from the python-like slice [beg, ..., end) with a given step.
+A negative step means that the order will be reversed. Use STR_END to indicate the item one after the last one. Use STR_FROMEND(n) to indicate the
+n-th item from the back, ex. STR_FROMEND(1) is the last item etc.
+See also 'https://stackoverflow.com/questions/509211/how-slicing-in-python-works' for more information.
+Invalid bounds that would cause the string to be empty, by default do not cause en error, unless __DOOTSTR_SLICE_ERRORS is defined.
+Otherwise, the function treats you like a baby and corrects your bounds to fit inside the string.
+NOTE: values of beg/end cannot have the most significant bit, set to 1.*/
+str_t *str_newslice(const char *cstring, size_t beg, size_t end, long step)
+{
+    if (!cstring)
+    {
+        STRFAIL("str_newslice: The passed address of the cstring is null.");
+    }
+    if (!(*cstring))
+    {
+        STR_SLICE_ERROR("str_newslice: The sliced cstring is empty.");
+        return str_newfrom("");
+    }
+
+    size_t clen = strlen(cstring);
+    // beg parameter
+    if (beg == STR_END)
+    {
+        beg = clen - 1;
+    }
+    else if (beg & STR_END) // It's counted from the end
+    {
+        //puts("from behind bitch beg");
+        beg = (beg & ~STR_END);
+        if (beg > clen)
+        {
+            STR_SLICE_ERROR("str_newslice: Beg goes out of bounds from the left side.");
+            beg = 0;
+        }
+        else 
+        {
+            beg = clen - beg;
+        }
+    }
+    else if (beg > clen)
+    {
+        STR_SLICE_ERROR("str_newslice: Beg goes out of bounds from the right side.");
+        beg = clen - 1;
+    }
+    // end parameter
+    if (end == STR_END)
+    {
+        end = clen - 1;
+    }
+    else if (end & STR_END) // It's counted from the end
+    {
+        //puts("from behind bitch end");
+        end = (end & ~STR_END);
+        if (end > clen)
+        {
+            STR_SLICE_ERROR("str_newslice: End goes out of bounds from the left side.");
+            end = clen - 1;
+        }
+        else
+        {
+            end = clen - end;
+        }
+    }
+    else if (end > clen)
+    {
+        STR_SLICE_ERROR("str_newslice: End goes out of bounds from the right side.");
+        end = clen - 1;
+    }
+
+    if (end < beg)
+    {
+        STR_SLICE_ERROR("str_newsloce: End is less than beg - resulting slice is invalid (empty).");
+        return str_newfrom("");
+    }
+
+    printf("Beg: %ld, end: %ld, step: %ld\n", beg, end, step);
+    return NULL;
+    // size_t sliceLen = 0;
+    // if (step > 0)
+    // {
+
+    // }
 }
 
 /*@brief Create a new doostr by taking ownership of an existing heap allocated c-style string. Other means of construction are
@@ -1254,7 +1348,38 @@ ssize_t str_rindex(str_t *pstr, const char *seq)
     return -1;
 }
 
-
+/*@brief Finds the first occurance of pivot and splits the string by it.
+@param[in] pstr input string (non empty)
+@param[in] pivot pivot sequence
+@param[in] pivot str_t containing the substring before the pivot.
+@param[in] outleft str_t containing the substring before the pivot.
+@param[in] outmid str_t containing the substring before the pivot.*/
+void str_partition(str_t *pstr, const char *pivot, str_t **outleft, str_t **outmid, str_t **outright)
+{
+    if (!pstr)
+    {
+        STRFAIL("str_partition: The passed address of a str_t was null.");
+    }
+    if (!pstr->pstr)
+    {
+        STRFAIL("str_partition: The passed string was empty.");
+    }
+    if (!pivot)
+    {
+        STRFAIL("str_partition: The passed address of pivot was null.");
+    }
+    if (!(*pivot))
+    {
+        STRFAIL("str_partition: The passed pivot was empty.");
+    }
+    if (!outleft || !outmid || !outright)
+    {
+        STRFAIL("str_partition: One of the passed addreses of output str_t pointer variables was null.");
+    }
+    //size_t pivlen = strlen(pivot);
+    //size_t pivInd = str_index(pstr, pivot);
+    //*outleft = str_new()
+}
 
 // str_t *str_slice(str_t *pstr, ssize_t begin, ssize_t step, ssize_t end)
 // {

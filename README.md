@@ -13,9 +13,9 @@ To directly control the amount of memory used, use ```str_new(size_t capacity)``
 
 ## Issues I'm aware of
 
-Currently I'm not guarding against allocating to much memory. The capacity type of size_t is big, but not infinite. Too bad.
+Currently I'm not guarding against allocating too much memory. The capacity type of size_t is big, but not infinite. Too bad.
 Another issue is the usage of ssize_t for indexes that could be -1. It's Unix only and not part of the C standard. Too bad.
-The C language doesn't include 
+The C language doesn't include a signed integer type that is guaranteed to hold negative values of the same magnitude as size_t,
 
 ## TODO
 

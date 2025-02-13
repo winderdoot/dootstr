@@ -1,3 +1,7 @@
+/*
+
+*/
+
 #ifndef __DOOTSTR_INC
 #define __DOOTSTR_INC
 
@@ -517,6 +521,9 @@ size_t str_removeCh(str_t *pstr, char c)
 {
     return 0;
 }
+
+//TODO: Next do striping and investigate what other cleanup fnc could be usefull.
+// Next do indexes, that's simple. Then splits and partitions, that's harder.
 
 #pragma endregion
 

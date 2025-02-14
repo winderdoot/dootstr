@@ -42,7 +42,7 @@ The string will be empty, null terminated and ready for further use.
 
 ## Freeing a string
 
-God intended for his children manually manage all memory, so to safely free a ```str_t``` object, use ```str_free()```:
+God intended for his children to manually manage all memory, so to safely free a ```str_t``` struct, use ```str_free()```:
 
 ```C
 size_t *s = str_newfrom("Hello dootstr!");

@@ -111,6 +111,7 @@ str_t *str_new(size_t capacity)
         {
             STRFAIL("malloc");
         }
+        *pstr->pstr = '\0';
     }
     return pstr;
 }

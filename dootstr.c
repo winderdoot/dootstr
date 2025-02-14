@@ -283,21 +283,27 @@ void str_assign_c(str_t *pstr, const char *cstring)
     {
         STRFAIL("str_assign_c: The address of a str_t was null.");
     }
+    size_t clen = strlen(cstring);
     if (pstr->pstr)
     {
         if (pstr->pstr == cstring)
         {
             return;
         }
+        if (pstr->capacity > clen)
+        {
+            memcpy(pstr->pstr, cstring, clen + 1);
+            pstr->strlen = clen;
+            return;
+        }
         free(pstr->pstr);
     }
-    
-    pstr->strlen = strlen(cstring);
+    pstr->strlen = clen;
     pstr->pstr = strdup(cstring);
     pstr->capacity = pstr->strlen + 1;
     if (!pstr->pstr)
     {
-        STRFAIL("str_assing_c: strdup");
+        STRFAIL("strdup");
     }
 }
 

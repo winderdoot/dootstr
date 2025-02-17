@@ -20,14 +20,14 @@ The C language doesn't include a signed integer type that is guaranteed to hold 
 
 ## TODO
 
-A method for construction from a pointer + length (checking for out out bounds)
-str_newslice - your lord and saviour!
+standardize error messages
+protect against allocating too much memory, throw errors if too much is requested
 
 slice_view
 slice_copy
 
 tokenize => simillar to strtok
-other python like methods
+other python like methods (if any are missing)
 
 format()
 

@@ -31,7 +31,9 @@ It works on my machine.
 #define STR_FROMEND(ind) (STR_END | (size_t)ind)    // This allows you to index the string from the back
 // The most significant bit indicates that the index is from the back
 
-#define STR_NEWCAPACITY(oldcap) ((oldcap)*2U)
+#define STR_NEWCAPACITY(oldcap) ((if ((oldcap)*2U < (oldcap)) STRFAIL("Memory failure, the requested memory size exceds the width of size_t type.");) , ((oldcap)*2U)) 
+//This also checks against overflow and throws an error if the required amount
+//would be greater than the width of size_t. Note that unsigned integer overflow is defined behaviour by the C standard.
 
 /** @struct str_t
  *  @brief This structure wraps a raw C style char pointer and provides a dynamic string implementation.
@@ -46,6 +48,8 @@ typedef struct str
     size_t capacity; /*Current size of the allocated memory block*/
 
 } str_t;
+
+
 
 #pragma region ALLOCATION
 /*
@@ -1643,6 +1647,17 @@ void str_afree(sarr_t **pparr)
     (*pparr)->size = 0;
     free(*pparr);
     *pparr = NULL;
+}
+
+/*@brief Splits the string by delim and returns an array (sarr_t) of resulting strings.*/
+sarr_t *str_split(str_t *pstr, const char *delim)
+{
+    if (!pstr)
+    {
+        STRFAIL("str_split: The passed address of str_t was null.");
+    }
+    size_t countDelims = str_count(pstr, delim);
+    return NULL;
 }
 
 /*

@@ -5,24 +5,7 @@
 
 int main()
 {
-    char *names[N] = {"Michael", "Emily"};
-    char **strings = (char**)malloc(sizeof(char*) * N);
-    // No checking fuck it
-    for (int i = 0; i < N; i ++)
-    {
-        strings[i] = strdup(names[i]);
-    }
-
-    sarr_t *ps = str_afrom(strings, N);
-    for (int i = 0; i < N; i ++)
-    {
-        puts(ps->strArr[i]->pstr);
-    }
-    for (int i = 0; i < N; i ++)
-    {
-        free(strings[i]);
-    }
-    free(strings);
-    str_afree(&ps);
+    str_t *s = str_newfrom("Hello lalalal this is a very long string that will cause an overflow under the specific max size I've set up. Let's add some more characters just to make sure.");
+    str_free(&s);
     return EXIT_SUCCESS;
 }

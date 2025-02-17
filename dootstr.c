@@ -13,7 +13,10 @@ It works on my machine.
 #include <string.h>
 #include <ctype.h>
 
-#define STRFAIL(source) (perror(source), fprintf(stderr, "STRFAIL: %s:%d\n", __FILE__, __LINE__), exit(EXIT_FAILURE))
+#define STRFAIL(message) (fprintf(stderr, "STRFAIL: %s:%d\n%s\n", __FILE__, __LINE__, message), exit(EXIT_FAILURE))
+// For my own functions
+#define STRERROR(source ) (perror(source), fprintf(stderr, "STRFAIL: %s:%d\n", __FILE__, __LINE__), exit(EXIT_FAILURE))
+// For standard functions
 
 #ifdef __DOOTSTR_DEBUG
 #define STR_LOG_ALLOC(oldcap, newcap) (printf("Reallocating from: %ld to %ld\n", oldcap, newcap))
@@ -31,9 +34,17 @@ It works on my machine.
 #define STR_FROMEND(ind) (STR_END | (size_t)ind)    // This allows you to index the string from the back
 // The most significant bit indicates that the index is from the back
 
-#define STR_NEWCAPACITY(oldcap) ((if ((oldcap)*2U < (oldcap)) STRFAIL("Memory failure, the requested memory size exceds the width of size_t type.");) , ((oldcap)*2U)) 
-//This also checks against overflow and throws an error if the required amount
-//would be greater than the width of size_t. Note that unsigned integer overflow is defined behaviour by the C standard.
+#define STR_MAXSIZE (2ULL << 5) // 2GB
+#define STR_EXPR_TESTOVERFLOW(oldcap) (((oldcap)*2U < oldcap || (oldcap)*2U > STR_MAXSIZE) ? (STRFAIL("Memory failure: the requested memory size either exceds 2GB, or the width of size_t type.")) : 0)
+#define STR_NEWCAPACITY(oldcap) ((void)STR_EXPR_TESTOVERFLOW(oldcap) , ((oldcap)*2U))
+/*A little bit of cursed macro magic
+This checks if the new size would be greater than a set maximum size, but also checks against overflow and throws an error if the required amount
+would be greater than the width of size_t (a bit redundant, since size_t is almost always very wide).
+Note that unsigned integer overflow is defined behaviour by the C standard.*/
+
+
+#define TEST(x) ((void)((x == 0) ? 1 : puts("haha")), (x))
+//(if ((oldcap)*2U < (oldcap)) STRFAIL("Memory failure, the requested memory size exceds the width of size_t type.");)
 
 /** @struct str_t
  *  @brief This structure wraps a raw C style char pointer and provides a dynamic string implementation.
@@ -58,6 +69,7 @@ some data will be lost, however the null terminator will always be inserted.
 */
 void str_realloc(str_t *pstr, size_t newcap)
 {
+    (void)STR_EXPR_TESTOVERFLOW(newcap / 2);
     STR_LOG_ALLOC(pstr->capacity, newcap);
     if (newcap == 0)
     {
@@ -70,7 +82,7 @@ void str_realloc(str_t *pstr, size_t newcap)
     pstr->pstr = (char*)realloc(pstr->pstr, newcap);
     if (!pstr->pstr)
     {
-        STRFAIL("realloc");
+        STRERROR("realloc");
     }
     pstr->capacity = newcap;
     if (pstr->capacity < pstr->strlen + 1) // Need to insert new null terminator
@@ -86,14 +98,15 @@ str_t *str_newfrom(const char *cstring)
     str_t *pstr = (str_t*)malloc(sizeof(str_t));
     if (!pstr)
     {
-        STRFAIL("malloc");
+        STRERROR("malloc");
     }
+    pstr->strlen = strlen(cstring);
+    (void)STR_EXPR_TESTOVERFLOW((pstr->strlen + 1) / 2);
     pstr->pstr = strdup(cstring);
     if (!pstr->pstr)
     {
-        STRFAIL("strdup");
-    }
-    pstr->strlen = strlen(cstring);
+        STRERROR("strdup");
+    }  
     pstr->capacity = pstr->strlen + 1;
     return pstr;
 }
@@ -104,17 +117,18 @@ str_t *str_new(size_t capacity)
     str_t *pstr = (str_t*)malloc(sizeof(str_t));
     if (!pstr)
     {
-        STRFAIL("malloc");
+        STRERROR("malloc");
     }
     pstr->strlen = 0;
     pstr->pstr = NULL;
     pstr->capacity = capacity;
     if (pstr->capacity != 0)
     {
+        (void)STR_EXPR_TESTOVERFLOW(capacity / 2);
         pstr->pstr = (char*)malloc(sizeof(char)*pstr->capacity);
         if (!pstr->pstr)
         {
-            STRFAIL("malloc");
+            STRERROR("malloc");
         }
         *pstr->pstr = '\0';
     }
@@ -225,7 +239,7 @@ str_t *str_steal(char *cstring)
     str_t *pstr = (str_t*)malloc(sizeof(str_t));
     if (!pstr)
     {
-        STRFAIL("malloc");
+        STRERROR("malloc");
     }
     pstr->pstr = cstring;
     pstr->strlen = strlen(cstring);
@@ -413,7 +427,7 @@ void str_append_c(str_t *pstr, const char *cstring)
         pstr->strlen = 0; // It should be zero already, just making sure tho
         if (!pstr->pstr)
         {
-            STRFAIL("realloc");
+            STRERROR("realloc");
         }
     }
     else if (pstr->capacity < pstr->strlen + rlen + 1)
@@ -421,7 +435,7 @@ void str_append_c(str_t *pstr, const char *cstring)
         str_realloc(pstr, STR_NEWCAPACITY(pstr->strlen + rlen + 1));
         if (!pstr->pstr)
         {
-            STRFAIL("realloc");
+            STRERROR("realloc");
         }
     }
 
@@ -445,7 +459,7 @@ void str_append(str_t *pleft, const str_t *pright)
         pleft->strlen = 0; // It should be zero already, just making sure tho
         if (!pleft->pstr)
         {
-            STRFAIL("realloc");
+            STRERROR("realloc");
         }
     }
     else if (pleft->capacity < pleft->strlen + pright->strlen + 1)
@@ -453,7 +467,7 @@ void str_append(str_t *pleft, const str_t *pright)
         str_realloc(pleft, STR_NEWCAPACITY(pleft->strlen + pright->strlen + 1));
         if (!pleft->pstr)
         {
-            STRFAIL("realloc");
+            STRERROR("realloc");
         }
     }
     memcpy(pleft->pstr + pleft->strlen, pright->pstr, pright->strlen + 1);
@@ -503,7 +517,7 @@ void str_insert_c(str_t *pstr, const char *cstring, size_t position)
         char *newblock = (char*)malloc(sizeof(char)*newcap);  
         if (!newblock)
         {
-            STRFAIL("malloc");
+            STRERROR("malloc");
         }
         memcpy(newblock, pstr->pstr, position);
         memcpy(newblock + position, cstring, rlen);
@@ -566,7 +580,7 @@ void str_insert(str_t *pleft, str_t *pright, size_t position)
         char *newblock = (char*)malloc(sizeof(char)*newcap);  
         if (!newblock)
         {
-            STRFAIL("malloc");
+            STRERROR("malloc");
         }
         memcpy(newblock, pleft->pstr, position);
         memcpy(newblock + position, pright->pstr, pright->strlen);
@@ -670,7 +684,7 @@ size_t str_remove(str_t *pstr, const char *seq)
     size_t *seqPos = (size_t*)malloc(sizeof(size_t)*count); // Array housing the positions of found substrings
     if (!seqPos)
     {
-        STRFAIL("malloc");
+        STRERROR("malloc");
     }
     size_t i = 0;
     char *p = pstr->pstr;
@@ -728,7 +742,7 @@ size_t str_removeAny(str_t *pstr, const char *set)
     size_t *seqPos = (size_t*)malloc(sizeof(size_t)*count); // Array housing the positions of found substrings
     if (!seqPos)
     {
-        STRFAIL("malloc");
+        STRERROR("malloc");
     }
     size_t i = 0;
     char *p = pstr->pstr;
@@ -1094,7 +1108,7 @@ size_t str_replace(str_t *pstr, const char *oldval, const char *newval)  // I su
     size_t *offsets = (size_t*)malloc(sizeof(size_t)*count);
     if (!offsets)
     {
-        STRFAIL("malloc");
+        STRERROR("malloc");
     }
     size_t i = 0;
     char *p = pstr->pstr;
@@ -1119,7 +1133,7 @@ size_t str_replace(str_t *pstr, const char *oldval, const char *newval)  // I su
     STR_LOG_ALLOC(pstr->capacity, blocksize);
     if (!newblock)
     {
-        STRFAIL("malloc");
+        STRERROR("malloc");
     }
 
     i = 0;
@@ -1172,7 +1186,7 @@ size_t str_replaceAny(str_t *pstr, const char *set, const char *newval)
     size_t *offsets = (size_t*)malloc(sizeof(size_t)*count);
     if (!offsets)
     {
-        STRFAIL("malloc");
+        STRERROR("malloc");
     }
     size_t i = 0;
     char *p = pstr->pstr;
@@ -1196,7 +1210,7 @@ size_t str_replaceAny(str_t *pstr, const char *set, const char *newval)
     STR_LOG_ALLOC(pstr->capacity, blocksize);
     if (!newblock)
     {
-        STRFAIL("malloc");
+        STRERROR("malloc");
     }
 
     i = 0;
@@ -1573,12 +1587,12 @@ sarr_t *str_asteal(char **cstrings, size_t n)
     sarr_t *parr = (sarr_t*)malloc(sizeof(sarr_t));
     if (!parr)
     {
-        STRFAIL("malloc");
+        STRERROR("malloc");
     }
     parr->strArr = (str_t**)malloc(sizeof(str_t*) * n);
     if (!parr->strArr)
     {
-        STRFAIL("malloc");
+        STRERROR("malloc");
     }
     parr->size = n;
     for (size_t i = 0; i < n; i++)
@@ -1607,12 +1621,12 @@ sarr_t *str_afrom(char **cstrings, size_t n)
     sarr_t *parr = (sarr_t*)malloc(sizeof(sarr_t));
     if (!parr)
     {
-        STRFAIL("malloc");
+        STRERROR("malloc");
     }
     parr->strArr = (str_t**)malloc(sizeof(str_t*) * n);
     if (!parr->strArr)
     {
-        STRFAIL("malloc");
+        STRERROR("malloc");
     }
     parr->size = n;
     for (size_t i = 0; i < n; i++)
@@ -1657,6 +1671,7 @@ sarr_t *str_split(str_t *pstr, const char *delim)
         STRFAIL("str_split: The passed address of str_t was null.");
     }
     size_t countDelims = str_count(pstr, delim);
+    (void)countDelims;
     return NULL;
 }
 

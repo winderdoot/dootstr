@@ -99,4 +99,27 @@ puts(s->pstr);
 > Java script is a bad language
 ```
 
-This is boring, go read the source code.
+To remove any ocurance of a given substring use ```str_remove(str_t *pstr, const char *substr)```:
+
+```C
+str_t *s = str_newfrom("C++ is the best!");
+str_remove(s, "++");
+puts(s->pstr);
+> C is the best!
+```
+
+To remove surrounding whitespace characters, use ```str_lstrip()```, ```str_strip()``` and ```str_rstrip()```
+
+## Replacing characters
+
+You can directly modify the character data of the string via the ```pstr``` struct field, but It's preferable to use library functions if possible. For replacing characters, there are a few functions available:
+
++ ```str_replace(str_t *pstr, const char *oldval, const char *newval)``` - replaces any found substring ```oldval``` with ```newval```
++ ```str_replaceAny(str_t *pstr, const char *set, const char *newval)``` - replaces any character also present in the string  ```set``` with the string ```newval```
++ ```str_replaceAnyCh(str_t *pstr, const char *set, char c)``` - replaces any character also present in the sting ```set``` with the character ```c```
+
+## Logical functions
+
+## Slicing and partitions
+
+other stuff idk

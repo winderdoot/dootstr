@@ -27,8 +27,9 @@ It works on my machine.
 #define STR_SLICE_ERROR(message)
 #endif
 
-#define STR_END ((size_t)1 << (__SIZE_WIDTH__ - 1)) // This is fucking trash
-#define STR_FROMEND(ind) (STR_END | (size_t)ind)    // the most significant bit indicates that the index is from the back
+#define STR_END ((size_t)1 << (__SIZE_WIDTH__ - 1)) // This is a special value indicating the position one after the last character
+#define STR_FROMEND(ind) (STR_END | (size_t)ind)    // This allows you to index the string from the back
+// The most significant bit indicates that the index is from the back
 
 #define STR_NEWCAPACITY(oldcap) ((oldcap)*2U)
 
@@ -128,7 +129,7 @@ size_t __str_boundIndex(size_t ind, size_t clen)
         ind = (ind & ~STR_END);
         if (ind > clen)
         {
-            STR_SLICE_ERROR("str_newslice: Beg goes out of bounds from the left side.");
+            STRFAIL("str indexing: Index (from-the-end) goes out of bounds from the left side.");
             return 0;
         }
         else 
@@ -188,7 +189,7 @@ str_t *str_newslice(const char *cstring, size_t beg, size_t end, long step)
         return str_newfrom("");
     }
 
-    size_t sliceLen = 1 + (end - beg) / labs(step); // This is correct I think
+    size_t sliceLen = 1 + (end - beg - 1) / labs(step); // This is correct I think
     str_t *slice = str_new(sliceLen + 1);
     size_t ind = (step > 0) ? beg : end - 1;
     size_t added = 0;
@@ -283,28 +284,21 @@ void str_assign_c(str_t *pstr, const char *cstring)
     {
         STRFAIL("str_assign_c: The address of a str_t was null.");
     }
-    size_t clen = strlen(cstring);
-    if (pstr->pstr)
+    if (pstr->pstr == cstring)
     {
-        if (pstr->pstr == cstring)
-        {
-            return;
-        }
-        if (pstr->capacity > clen)
-        {
-            memcpy(pstr->pstr, cstring, clen + 1);
-            pstr->strlen = clen;
-            return;
-        }
-        free(pstr->pstr);
+        return;
     }
-    pstr->strlen = clen;
-    pstr->pstr = strdup(cstring);
-    pstr->capacity = pstr->strlen + 1;
+    size_t clen = strlen(cstring);
     if (!pstr->pstr)
     {
-        STRFAIL("strdup");
+        str_realloc(pstr, clen + 1);
     }
+    else if (pstr->capacity < clen + 1)
+    {
+        str_realloc(pstr, clen + 1);
+    }
+    pstr->strlen = clen;
+    memcpy(pstr->pstr, cstring, clen + 1);
 }
 
 void str_assign(str_t *pleft, const str_t *pright)
@@ -321,17 +315,84 @@ void str_assign(str_t *pleft, const str_t *pright)
     {
         return;
     }
-    if (pleft->pstr)
-    {
-        free(pleft->pstr);
-    }
-    pleft->strlen = pright->strlen;
-    pleft->pstr = strdup(pright->pstr);
-    pleft->capacity = pleft->strlen + 1;
     if (!pleft->pstr)
     {
-        STRFAIL("strdup");
+        str_realloc(pleft, pright->strlen);
     }
+    else if (pleft->capacity < pright->strlen + 1)
+    {
+        str_realloc(pleft, pright->strlen + 1);
+    }
+    pleft->strlen = pright->strlen;
+    memcpy(pleft->pstr, pright->pstr, pright->strlen + 1);
+}
+
+/*This function, unlike str_newslice by default allows you to use empty slices by setting beg the same as end.*/
+void str_assignSlice(str_t *pstr, const char *cstring, size_t beg, size_t end, long step)
+{
+    if (!cstring)
+    {
+        STRFAIL("str_assignSlice: The passed address of the cstring is null.");
+    }
+    if (!(*cstring))
+    {
+        STR_SLICE_ERROR("str_assignSlice: The sliced cstring is empty.");
+        str_assign_c(pstr, "");
+        return;
+    }
+    if (step == 0)
+    {
+        STR_SLICE_ERROR("str_assignSlice: The step cannot be zero. Resulting slice is empty.");
+        str_assign_c(pstr, "");
+        return;
+    }
+
+    size_t clen = strlen(cstring);
+    beg = __str_boundIndex(beg, clen); // In case the index is 'from the end'
+    if (beg > clen)
+    {
+        STR_SLICE_ERROR("str_assignSlice: Beg goes out of bounds from the right side.");
+        beg = clen - 1;
+    }
+    end = __str_boundIndex(end, clen); // In case the index is 'from the end'
+    if (end > clen)
+    {
+        STR_SLICE_ERROR("str_assignSlice: End goes out of bounds from the right side.");
+        end = clen;
+    }
+    if (end < beg)
+    {
+        STR_SLICE_ERROR("str_assignSlice: End is less than beg - resulting slice is invalid (empty).");
+        str_assign_c(pstr, "");
+        return;
+    }
+    else if (end == beg)
+    {
+        str_assign_c(pstr, "");
+        return;
+    }
+    size_t sliceLen = 1 + (end - beg - 1) / labs(step); // This is correct I think
+    if (pstr->capacity < sliceLen + 1)
+    {
+        str_realloc(pstr, sliceLen + 1);
+    }
+    size_t ind = (step > 0) ? beg : end - 1;
+    size_t added = 0;
+    while (added < sliceLen)
+    {
+        pstr->pstr[added++] = cstring[ind];
+        if (step > 0)
+        {
+            ind += step;
+        }
+        else
+        {
+            ind += (size_t)(-step);
+        }
+
+    }
+    pstr->strlen = sliceLen;
+    pstr->pstr[pstr->strlen] = '\0';
 }
 
 void str_append_c(str_t *pstr, const char *cstring)
@@ -1305,6 +1366,7 @@ ssize_t str_index(str_t *pstr, const char *seq)
     ssize_t found = -1;
     ssize_t i = 0;
     const char *ps = seq;
+    // This could be strstr(pstr->pstr) - pstr->pstr; But this is more easily modifiable.
     while (pstr->pstr[i])
     {
         found = i;
@@ -1369,6 +1431,7 @@ ssize_t str_rindex(str_t *pstr, const char *seq)
 }
 
 /*@brief Finds the first occurance of pivot and splits the string by it.
+The passed output strings can but don't have to be initialized.
 @param[in] pstr input string (non empty)
 @param[in] pivot pivot sequence
 @param[in] pivot str_t containing the substring before the pivot.
@@ -1396,9 +1459,32 @@ void str_partition(str_t *pstr, const char *pivot, str_t **outleft, str_t **outm
     {
         STRFAIL("str_partition: One of the passed addreses of output str_t pointer variables was null.");
     }
-    //size_t pivlen = strlen(pivot);
-    //size_t pivInd = str_index(pstr, pivot);
-    //*outleft = str_new()
+    if (!*outleft)
+    {
+        *outleft = str_new(0);
+    }
+    if (!*outmid)
+    {
+        *outmid = str_new(0);
+    }
+    if (!*outright)
+    {
+        *outright = str_new(0);
+    }
+    ssize_t pivInd = str_index(pstr, pivot);
+    size_t pivLen = strlen(pivot);
+    if (pivInd == -1)
+    {
+        str_assign_c(*outright, "");
+        str_assign_c(*outmid, pivot);
+        str_assign_c(*outright, "");
+    }
+    else
+    {
+        str_assignSlice(*outleft, pstr->pstr, 0, pivInd, 1);
+        str_assign_c(*outmid, pivot);
+        str_assignSlice(*outright, pstr->pstr, pivInd + pivLen, pstr->strlen, 1);
+    }
 }
 
 // str_t *str_slice(str_t *pstr, ssize_t begin, ssize_t step, ssize_t end)
@@ -1421,5 +1507,17 @@ for ...
 */
 #pragma endregion
 
+#pragma region VIEWING
+/*Safely access the i-th string character with bound checking and from-the-end indexing support.*/
+char str_at(str_t* pstr, size_t i)
+{
+    size_t boundInd = __str_boundIndex(i, pstr->strlen);
+    if (boundInd > pstr->strlen)
+    {
+        STRFAIL("str_at: Index is out of bounds from the right side.");
+    }
+    return pstr->pstr[boundInd];
+}
+#pragma endregion
 
 #endif

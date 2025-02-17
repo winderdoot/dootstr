@@ -26,14 +26,13 @@ str_newslice - your lord and saviour!
 slice_view
 slice_copy
 
-partition() rpartition()
+rpartition()
 splitlines()
 join()
 split => returns a string array with a size
 tokenize => simillar to strtok
 other python like methods
 
-strip(), lstrip(), rstrip()
 format()
 
 Probably not gonna implement stuff that would be indentical to an already existing C library function.

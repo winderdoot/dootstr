@@ -1487,6 +1487,55 @@ void str_partition(str_t *pstr, const char *pivot, str_t **outleft, str_t **outm
     }
 }
 
+void str_rpartition(str_t *pstr, const char *pivot, str_t **outleft, str_t **outmid, str_t **outright)
+{
+    if (!pstr)
+    {
+        STRFAIL("str_rpartition: The passed address of a str_t was null.");
+    }
+    if (!pstr->pstr)
+    {
+        STRFAIL("str_rpartition: The passed string was empty.");
+    }
+    if (!pivot)
+    {
+        STRFAIL("str_rpartition: The passed address of pivot was null.");
+    }
+    if (!(*pivot))
+    {
+        STRFAIL("str_rpartition: The passed pivot was empty.");
+    }
+    if (!outleft || !outmid || !outright)
+    {
+        STRFAIL("str_rpartition: One of the passed addreses of output str_t pointer variables was null.");
+    }
+    if (!*outleft)
+    {
+        *outleft = str_new(0);
+    }
+    if (!*outmid)
+    {
+        *outmid = str_new(0);
+    }
+    if (!*outright)
+    {
+        *outright = str_new(0);
+    }
+    ssize_t pivInd = str_rindex(pstr, pivot);
+    size_t pivLen = strlen(pivot);
+    if (pivInd == -1)
+    {
+        str_assign_c(*outright, "");
+        str_assign_c(*outmid, pivot);
+        str_assign_c(*outright, "");
+    }
+    else
+    {
+        str_assignSlice(*outleft, pstr->pstr, 0, pivInd, 1);
+        str_assign_c(*outmid, pivot);
+        str_assignSlice(*outright, pstr->pstr, pivInd + pivLen, pstr->strlen, 1);
+    }
+}
 // str_t *str_slice(str_t *pstr, ssize_t begin, ssize_t step, ssize_t end)
 // {
 

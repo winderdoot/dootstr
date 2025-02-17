@@ -236,14 +236,15 @@ void str_free(str_t **ppstr)
     {
         STRFAIL("str_free: The address of a str_t pointer variable was null. Remember to pass an address (&variable) of a pointer variable to this function.");
     }
-    if (*ppstr)
+    if (!*ppstr)
     {
-        if ((*ppstr)->pstr)
-        {
-            free((*ppstr)->pstr);
-        }
-        free(*ppstr);
+        return;
     }
+    if ((*ppstr)->pstr)
+    {
+        free((*ppstr)->pstr);
+    }
+    free(*ppstr);
     *ppstr = NULL;
 }
 
@@ -1536,10 +1537,119 @@ void str_rpartition(str_t *pstr, const char *pivot, str_t **outleft, str_t **out
         str_assignSlice(*outright, pstr->pstr, pivInd + pivLen, pstr->strlen, 1);
     }
 }
-// str_t *str_slice(str_t *pstr, ssize_t begin, ssize_t step, ssize_t end)
-// {
 
-// }
+/*
+@brief This struct represents an array of str_t objects. It's used by some dootstr functions, to make dealing with many strings easier
+and safer. Now ideally this would be a dynamic vector, but at this point just use C++. This struct is mostly meant to be recieved by the user from
+str_ functions, not necessarily created.
+*/
+typedef struct sarr
+{
+    str_t **strArr; /*The array of str_t pointers (to single str_t structs).*/
+    size_t size; /*The number of strings in the array.*/
+} sarr_t;
+
+/*@brief Create a sarr_t by taking onwership of an existing array of c-style strings.
+The cstring pointer is freed, dangling and unusable afterwards. Make sure that the provided array is of size n,
+otherwise excpect read violations. Please be careful with this.*/
+sarr_t *str_asteal(char **cstrings, size_t n)
+{
+    if (!cstrings)
+    {
+        STRFAIL("str_asteal: The passed address to cstrings is null.");
+    }
+    for (size_t i = 0; i < n; i++)
+    {
+        if (!(cstrings[i]))
+        {
+            STRFAIL("str_asteal: One of the strings in the cstrings array is null");
+        }
+    }
+
+    sarr_t *parr = (sarr_t*)malloc(sizeof(sarr_t));
+    if (!parr)
+    {
+        STRFAIL("malloc");
+    }
+    parr->strArr = (str_t**)malloc(sizeof(str_t*) * n);
+    if (!parr->strArr)
+    {
+        STRFAIL("malloc");
+    }
+    parr->size = n;
+    for (size_t i = 0; i < n; i++)
+    {
+        parr->strArr[i] = str_steal(cstrings[i]);
+    }
+    free(cstrings);
+    return parr;
+}
+
+/*@brief Create a sarr_t by copying an already existing array of c-style strings.*/
+sarr_t *str_afrom(char **cstrings, size_t n)
+{
+    if (!cstrings)
+    {
+        STRFAIL("str_afrom: The passed address to cstrings is null.");
+    }
+    for (size_t i = 0; i < n; i++)
+    {
+        if (!(cstrings[i]))
+        {
+            STRFAIL("str_afrom: One of the strings in the cstrings array is null");
+        }
+    }
+
+    sarr_t *parr = (sarr_t*)malloc(sizeof(sarr_t));
+    if (!parr)
+    {
+        STRFAIL("malloc");
+    }
+    parr->strArr = (str_t**)malloc(sizeof(str_t*) * n);
+    if (!parr->strArr)
+    {
+        STRFAIL("malloc");
+    }
+    parr->size = n;
+    for (size_t i = 0; i < n; i++)
+    {
+        parr->strArr[i] = str_newfrom(cstrings[i]);
+    }
+    return parr;
+}
+
+/*Safely free a sarr_t by passing the addres of a str_t* variable. The variable will be set to NULL afterwards.*/
+void str_afree(sarr_t **pparr)
+{
+    if (!pparr)
+    {
+        STRFAIL("str_afree: The passed address of a sarr_t* variable is null.");
+    }
+    if (!*pparr)
+    {
+        return;
+    }
+    if (!(*pparr)->strArr)
+    {
+        (*pparr)->size = 0;
+        return;
+    }
+    for (size_t i = 0; i < (*pparr)->size; i++)
+    {
+        str_free((*pparr)->strArr + i);
+    }
+    free((*pparr)->strArr);
+    (*pparr)->strArr = NULL;
+    (*pparr)->size = 0;
+    free(*pparr);
+    *pparr = NULL;
+}
+
+/*
+splitlines()
+join()
+split => returns a string array with a size
+*/
 
 typedef struct dootview
 {
@@ -1566,6 +1676,14 @@ char str_at(str_t* pstr, size_t i)
         STRFAIL("str_at: Index is out of bounds from the right side.");
     }
     return pstr->pstr[boundInd];
+}
+#pragma endregion
+
+#pragma region FORMATTING
+//Time to do this bitch
+void str_format()
+{
+
 }
 #pragma endregion
 

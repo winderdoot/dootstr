@@ -1,17 +1,28 @@
 #include <stdio.h>
 #include "dootstr.c"
 
+#define N 2
+
 int main()
 {
-    str_t *mess = str_newfrom("abc123def");
-    str_t *s1 = str_new(0), *s2 = str_new(0), *s3 = str_new(0);
-    str_partition(mess, "123", &s1, &s2, &s3);
-    puts(s1->pstr);
-    puts(s2->pstr);
-    puts(s3->pstr);
-    str_free(&s1);
-    str_free(&s2);
-    str_free(&s3);
-    str_free(&mess);
+    char *names[N] = {"Michael", "Emily"};
+    char **strings = (char**)malloc(sizeof(char*) * N);
+    // No checking fuck it
+    for (int i = 0; i < N; i ++)
+    {
+        strings[i] = strdup(names[i]);
+    }
+
+    sarr_t *ps = str_afrom(strings, N);
+    for (int i = 0; i < N; i ++)
+    {
+        puts(ps->strArr[i]->pstr);
+    }
+    for (int i = 0; i < N; i ++)
+    {
+        free(strings[i]);
+    }
+    free(strings);
+    str_afree(&ps);
     return EXIT_SUCCESS;
 }

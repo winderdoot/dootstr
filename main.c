@@ -5,7 +5,11 @@
 
 int main()
 {
-    str_t *s = str_newfrom("Hello lalalal this is a very long string that will cause an overflow under the specific max size I've set up. Let's add some more characters just to make sure.");
+    str_t *s = str_newfrom("a");
+
+    str_assign_c(s, "baabaaa");
+    printf("%ld\n", __str_countSplits(s, "aa", NULL));
+
     str_free(&s);
     return EXIT_SUCCESS;
 }

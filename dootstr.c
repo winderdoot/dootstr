@@ -34,7 +34,7 @@ It works on my machine.
 #define STR_FROMEND(ind) (STR_END | (size_t)ind)    // This allows you to index the string from the back
 // The most significant bit indicates that the index is from the back
 
-#define STR_MAXSIZE (2ULL << 5) // 2GB
+#define STR_MAXSIZE (2ULL << 31) // 2GB
 #define STR_EXPR_TESTOVERFLOW(oldcap) (((oldcap)*2U < oldcap || (oldcap)*2U > STR_MAXSIZE) ? (STRFAIL("Memory failure: the requested memory size either exceds 2GB, or the width of size_t type.")) : 0)
 #define STR_NEWCAPACITY(oldcap) ((void)STR_EXPR_TESTOVERFLOW(oldcap) , ((oldcap)*2U))
 /*A little bit of cursed macro magic
@@ -1663,15 +1663,106 @@ void str_afree(sarr_t **pparr)
     *pparr = NULL;
 }
 
-/*@brief Splits the string by delim and returns an array (sarr_t) of resulting strings.*/
-sarr_t *str_split(str_t *pstr, const char *delim)
+/*@brief Internal function that counts how many parts spliting the string by delim will result in.
+I have a feeling this is horribly written and could be rewritten to 1/2 the length. This is godawful, but works.*/
+size_t __str_countSplits(str_t *pstr, const char *delim, size_t *dsize)
 {
     if (!pstr)
     {
         STRFAIL("str_split: The passed address of str_t was null.");
     }
-    size_t countDelims = str_count(pstr, delim);
-    (void)countDelims;
+    if (pstr->strlen == 0)
+    {
+        return 0;
+    }
+    if (!delim)
+    {
+        STRFAIL("str_split: The passed delim is null.");
+    }
+    if (!*delim)
+    {
+        return 1;
+    }
+    size_t dlen = strlen(delim);
+    if (dsize)
+    {
+        *dsize = dlen;
+    }
+    const char *p = pstr->pstr, *plast = p;
+    size_t count = 0;
+    short anyDelim = 0;
+    while ((p = strstr(p, delim)) != NULL)
+    {
+        //printf("p: %ld, plast: %ld\n", p - pstr->pstr, plast - pstr->pstr);
+        // Check if character to the left is not outside or part of another delim sequence
+        if (p == pstr->pstr || (plast + dlen >= p && anyDelim))
+        {
+            //puts("start");
+            anyDelim = 1;
+            plast = p;
+            p += dlen;
+            continue;
+        }
+        //puts("norm");
+        anyDelim = 1;
+        count++;
+        plast = p;
+        p += dlen;
+    }
+    if (plast == pstr->pstr)
+    {
+        //There was either no delim or a single delim at the beginning or 
+        if (anyDelim)
+        {
+            //printf("anydelim %d\n", pstr->strlen > dlen);
+            return pstr->strlen > dlen;
+        }
+        //puts("teddy");
+        return 1;
+    }
+    //printf("%ld    \n", plast + dlen - pstr->pstr);
+    if (plast + dlen - pstr->pstr < pstr->strlen)
+    {
+        //puts("count");
+        count ++; // Count the last one
+    }
+    return count;
+}
+
+/*@brief Splits the string by delim and returns an array (sarr_t) of resulting strings.*/
+sarr_t *str_split(str_t *pstr, const char *delim)
+{
+    size_t dlen;
+    size_t numSplits = __str_countSplits(pstr, delim, &dlen);
+    sarr_t *parr = (sarr_t*)malloc(sizeof(sarr_t));
+    if (!parr)
+    {
+        STRERROR("malloc");
+    }
+    parr->size = numSplits;
+    if (parr->size == 0)
+    {
+
+        return NULL;
+    }
+    parr->strArr = (str_t**)malloc(sizeof(str_t*)*parr->size);
+    if (!parr->strArr)
+    {
+        STRERROR("malloc");
+    }
+    
+    // size_t dlen = strlen(dlen);
+    // size_t ind = 0;
+    // const char *p = pstr->pstr;
+    // const char *plast = p;
+    // while ((p = strstr(p, delim)) != NULL)
+    // {
+    //     //parr->strArr[ind] = str_newslice(plast, dlen, p - plast);
+    //     plast = p;
+    //     p++;
+    //     ind++;
+
+    // }
     return NULL;
 }
 
@@ -1710,7 +1801,7 @@ char str_at(str_t* pstr, size_t i)
 #pragma endregion
 
 #pragma region FORMATTING
-//Time to do this bitch
+//Time to do this bitch... later
 void str_format()
 {
 

@@ -1693,17 +1693,14 @@ size_t __str_countSplits(str_t *pstr, const char *delim, size_t *dsize)
     short anyDelim = 0;
     while ((p = strstr(p, delim)) != NULL)
     {
-        //printf("p: %ld, plast: %ld\n", p - pstr->pstr, plast - pstr->pstr);
         // Check if character to the left is not outside or part of another delim sequence
         if (p == pstr->pstr || (plast + dlen >= p && anyDelim))
         {
-            //puts("start");
             anyDelim = 1;
             plast = p;
             p += dlen;
             continue;
         }
-        //puts("norm");
         anyDelim = 1;
         count++;
         plast = p;
@@ -1714,16 +1711,12 @@ size_t __str_countSplits(str_t *pstr, const char *delim, size_t *dsize)
         //There was either no delim or a single delim at the beginning or 
         if (anyDelim)
         {
-            //printf("anydelim %d\n", pstr->strlen > dlen);
             return pstr->strlen > dlen;
         }
-        //puts("teddy");
         return 1;
     }
-    //printf("%ld    \n", plast + dlen - pstr->pstr);
     if (plast + dlen - pstr->pstr < pstr->strlen)
     {
-        //puts("count");
         count ++; // Count the last one
     }
     return count;

@@ -14,9 +14,10 @@ To directly control the amount of memory used, use ```str_new(size_t capacity)``
 
 ## Issues I'm aware of
 
-Currently I'm not guarding against allocating too much memory. The capacity type of size_t is big, but not infinite. Too bad.
+Guarding against huge allocations has been added.
 Another issue is the usage of ssize_t for indexes that could be -1. It's Unix only and not part of the C standard. Too bad.
 The C language doesn't include a signed integer type that is guaranteed to hold negative values of the same magnitude as size_t. Too bad.
+I could also remove the need for allocating the ```pstr``` pointer in the ```str_t``` struct by storing the string data after the ```capacity``` and ```strlen``` fields, directly in the memory of the struct. That would reduce memory overhead, but it would make shortening and reallocating the string wery cumbersome, as the address the user uses to access the string would have to change. I won't be implementing that.
 
 ## TODO
 

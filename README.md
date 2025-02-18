@@ -17,12 +17,11 @@ To directly control the amount of memory used, use ```str_new(size_t capacity)``
 Guarding against huge allocations has been added.
 Another issue is the usage of ssize_t for indexes that could be -1. It's Unix only and not part of the C standard. Too bad.
 The C language doesn't include a signed integer type that is guaranteed to hold negative values of the same magnitude as size_t. Too bad.
-I could also remove the need for allocating the ```pstr``` pointer in the ```str_t``` struct by storing the string data after the ```capacity``` and ```strlen``` fields, directly in the memory of the struct. That would reduce memory overhead, but it would make shortening and reallocating the string wery cumbersome, as the address the user uses to access the string would have to change. I won't be implementing that.
+I could also remove the need for allocating the ```pstr``` pointer in the ```str_t``` struct by storing the string data after the ```capacity``` and ```strlen``` fields, directly in the memory of the struct. That would reduce memory overhead, but it would make shortening and reallocating the string very cumbersome, as the address the user uses to access the string could need to change. I won't be implementing that.
 
 ## TODO
 
 standardize error messages
-protect against allocating too much memory, throw errors if too much is requested
 
 slice_view
 slice_copy

@@ -1650,6 +1650,8 @@ void str_afree(sarr_t **pparr)
     if (!(*pparr)->strArr)
     {
         (*pparr)->size = 0;
+        free(*pparr);
+        *pparr = NULL;
         return;
     }
     for (size_t i = 0; i < (*pparr)->size; i++)
@@ -1735,8 +1737,19 @@ sarr_t *str_split(str_t *pstr, const char *delim)
     parr->size = numSplits;
     if (parr->size == 0)
     {
+        parr->strArr = NULL;
+        return parr;
+    }
 
-        return NULL;
+    parr->strArr = (str_t**)malloc(sizeof(str_t*)*parr->size);
+    if (!parr->strArr)
+    {
+        STRERROR("malloc");
+    }
+    if (parr->size == 1)
+    {
+        parr->strArr[0] = str_newfrom(pstr->pstr);
+        return parr;
     }
     parr->strArr = (str_t**)malloc(sizeof(str_t*)*parr->size);
     if (!parr->strArr)

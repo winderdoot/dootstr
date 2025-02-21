@@ -21,7 +21,6 @@ The C language doesn't include a signed integer type that is guaranteed to hold 
 ## TODO
 
 standardize error messages
-protect against allocating too much memory, throw errors if too much is requested
 
 slice_view
 slice_copy

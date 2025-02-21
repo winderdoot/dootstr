@@ -1,7 +1,15 @@
 #include <stdio.h>
 #include "dootstr.c"
+#include <stdint.h>
 
-#define N 2
+typedef struct foo
+{
+    int x;
+    char name[32];
+    size_t size;
+} FooType;
+
+
 
 int main()
 {

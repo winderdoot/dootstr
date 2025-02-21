@@ -19,7 +19,14 @@ Another issue is the usage of ssize_t for indexes that could be -1. It's Unix on
 The C language doesn't include a signed integer type that is guaranteed to hold negative values of the same magnitude as size_t. Too bad.
 I could also remove the need for allocating the ```pstr``` pointer in the ```str_t``` struct by storing the string data after the ```capacity``` and ```strlen``` fields, directly in the memory of the struct. That would reduce memory overhead, but it would make shortening and reallocating the string very cumbersome, as the address the user uses to access the string could need to change. I won't be implementing that.
 
-## TODO
+## Unicode support
+
+I've added barebones UNICODE support. If ```DOOTSTR_USE_WCHAR``` is defined, then ```wchar_t``` will be the char type used in the implementation. I haven't tested it on windows yet, because I still need to add fixed width integers into the implementation first. I'm way to sleepy rn. it can wait
+
+## TODO`
+
+Modify sarr_t to have the str_t array inplace with the sarr_t struct memory, that way caching is utilized.
+The sarr_t arrays don't change size so they don't need to be reallocated.
 
 standardize error messages
 
@@ -33,3 +40,9 @@ format()
 
 Probably not gonna implement stuff that would be indentical to an already existing C library function.
 At most I might lightly wrap some of them.
+
+C str functions that have macros to replace them with wchar_t versions if needed:
+strdup => wcsdup
+strstr => wcsstr
+"" => L""
+strpbrk => wcspbrk

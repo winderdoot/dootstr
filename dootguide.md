@@ -123,5 +123,3 @@ You can directly modify the character data of the string via the ```pstr``` stru
 ## Slicing and partitions
 
 other stuff idk
-
-test

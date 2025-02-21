@@ -1,22 +1,15 @@
 #include <stdio.h>
+#include <wchar.h>
+
+#define DOOTSTR_USE_WCHAR
 #include "dootstr.c"
-#include <stdint.h>
-
-typedef struct foo
-{
-    int x;
-    char name[32];
-    size_t size;
-} FooType;
-
-
 
 int main()
 {
-    str_t *s = str_newfrom("a");
+    str_t *s = str_newfrom(L"aaaaaaa");
+    printf("%ld\n", str_count(s, L"a"));
 
-    str_assign_c(s, "baabaaa");
-    printf("%ld\n", __str_countSplits(s, "aa", NULL));
+    wprintf(L"%ls\n", s->pstr);
 
     str_free(&s);
     return EXIT_SUCCESS;

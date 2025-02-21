@@ -12,19 +12,21 @@ It works on my machine.
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <locale.h>
+#include <wchar.h>
 
 #define STRFAIL(message) (fprintf(stderr, "STRFAIL: %s:%d\n%s\n", __FILE__, __LINE__, message), exit(EXIT_FAILURE))
 // For my own functions
 #define STRERROR(source ) (perror(source), fprintf(stderr, "STRFAIL: %s:%d\n", __FILE__, __LINE__), exit(EXIT_FAILURE))
 // For standard functions
 
-#ifdef __DOOTSTR_DEBUG
+#ifdef DOOTSTR_DEBUG
 #define STR_LOG_ALLOC(oldcap, newcap) (printf("Reallocating from: %ld to %ld\n", oldcap, newcap))
 #else
 #define STR_LOG_ALLOC(oldcap, newcap) 
 #endif
 
-#ifdef __DOOTSTR_SLICE_ERRORS
+#ifdef DOOTSTR_SLICE_ERRORS
 #define STR_SLICE_ERROR(message) (fprintf(stderr, "STRFAIL: %s:%d\n%s\n", __FILE__, __LINE__, message), exit(EXIT_FAILURE))
 #else
 #define STR_SLICE_ERROR(message)
@@ -42,9 +44,21 @@ This checks if the new size would be greater than a set maximum size, but also c
 would be greater than the width of size_t (a bit redundant, since size_t is almost always very wide).
 Note that unsigned integer overflow is defined behaviour by the C standard.*/
 
-
-#define TEST(x) ((void)((x == 0) ? 1 : puts("haha")), (x))
-//(if ((oldcap)*2U < (oldcap)) STRFAIL("Memory failure, the requested memory size exceds the width of size_t type.");)
+#ifdef DOOTSTR_USE_WCHAR
+typedef wchar_t dchar_t;
+#define _strlen(s) (wcsnlen(s, (size_t)STR_MAXSIZE))
+#define _strdup(s) wcsdup(s)
+#define _strstr(s1, s2) wcsstr(s1, s2)
+#define _strpbrk(s1, s2) wcspbrk(s1, s2)
+#define STR_EMPTY L""
+#else
+typedef char dchar_t;
+#define _strlen(s) (strnlen(s, (size_t)STR_MAXSIZE))
+#define _strdup(s) strdup(s)
+#define _strstr(s1, s2) strstr(s1, s2)
+#define _strpbrk(s1, s2) strpbrk(s1, s2)
+#define STR_EMPTY ""
+#endif
 
 /** @struct str_t
  *  @brief This structure wraps a raw C style char pointer and provides a dynamic string implementation.
@@ -54,7 +68,7 @@ Note that unsigned integer overflow is defined behaviour by the C standard.*/
  */
 typedef struct str
 {
-    char *pstr; /*Null terminated pointer to the char data*/
+    dchar_t *pstr; /*Null terminated pointer to the char data*/
     size_t strlen; /*Number of stored readable characters*/
     size_t capacity; /*Current size of the allocated memory block*/
 
@@ -79,7 +93,7 @@ void str_realloc(str_t *pstr, size_t newcap)
     {
         STRFAIL("str_realloc: The address of str_t pointer was null.");
     }
-    pstr->pstr = (char*)realloc(pstr->pstr, newcap);
+    pstr->pstr = (dchar_t *)realloc(pstr->pstr, newcap * sizeof(dchar_t));
     if (!pstr->pstr)
     {
         STRERROR("realloc");
@@ -93,19 +107,23 @@ void str_realloc(str_t *pstr, size_t newcap)
 }
 
 /*@brief Returns a pointer to a string initialized with a c-style string literal.*/
-str_t *str_newfrom(const char *cstring)
+str_t *str_newfrom(const dchar_t *cstring)
 {
     str_t *pstr = (str_t*)malloc(sizeof(str_t));
     if (!pstr)
     {
         STRERROR("malloc");
     }
-    pstr->strlen = strlen(cstring);
+    pstr->strlen = _strlen(cstring);
     (void)STR_EXPR_TESTOVERFLOW((pstr->strlen + 1) / 2);
-    pstr->pstr = strdup(cstring);
+    pstr->pstr = _strdup(cstring);
     if (!pstr->pstr)
     {
+        #ifdef DOOTSTR_USE_WCHAR
+        STRERROR("wcsdup");
+        #else
         STRERROR("strdup");
+        #endif
     }  
     pstr->capacity = pstr->strlen + 1;
     return pstr;
@@ -125,7 +143,7 @@ str_t *str_new(size_t capacity)
     if (pstr->capacity != 0)
     {
         (void)STR_EXPR_TESTOVERFLOW(capacity / 2);
-        pstr->pstr = (char*)malloc(sizeof(char)*pstr->capacity);
+        pstr->pstr = (dchar_t *)malloc(sizeof(dchar_t) * pstr->capacity);
         if (!pstr->pstr)
         {
             STRERROR("malloc");
@@ -163,10 +181,10 @@ size_t __str_boundIndex(size_t ind, size_t clen)
 A negative step means that the order will be reversed. Use STR_END to indicate the item one after the last one. Use STR_FROMEND(n) to indicate the
 n-th item from the back, ex. STR_FROMEND(1) is the last item (don't try STR_END-1 - it doesn't work!).
 See also 'https://stackoverflow.com/questions/509211/how-slicing-in-python-works' for more information.
-Invalid bounds that would cause the string to be empty, by default do not cause en error, unless __DOOTSTR_SLICE_ERRORS is defined.
+Invalid bounds that would cause the string to be empty, by default do not cause en error, unless DOOTSTR_SLICE_ERRORS is defined.
 Otherwise, the function treats you like a baby and corrects your bounds to fit inside the string.
 NOTE: values of beg/end cannot have the most significant bit, set to 1.*/
-str_t *str_newslice(const char *cstring, size_t beg, size_t end, long step)
+str_t *str_newslice(const dchar_t *cstring, size_t beg, size_t end, long step)
 {
     if (!cstring)
     {
@@ -175,15 +193,15 @@ str_t *str_newslice(const char *cstring, size_t beg, size_t end, long step)
     if (!(*cstring))
     {
         STR_SLICE_ERROR("str_newslice: The sliced cstring is empty.");
-        return str_newfrom("");
+        return str_newfrom(STR_EMPTY);
     }
     if (step == 0)
     {
         STR_SLICE_ERROR("str_newsloice: The step cannot be zero. Resulting slice is empty.");
-        return str_newfrom("");
+        return str_newfrom(STR_EMPTY);
     }
 
-    size_t clen = strlen(cstring);
+    size_t clen = _strlen(cstring);
     beg = __str_boundIndex(beg, clen); // In case the index is 'from the end'
     if (beg >= clen)
     {
@@ -199,12 +217,12 @@ str_t *str_newslice(const char *cstring, size_t beg, size_t end, long step)
     if (end < beg)
     {
         STR_SLICE_ERROR("str_newslice: End is less than beg - resulting slice is invalid (empty).");
-        return str_newfrom("");
+        return str_newfrom(STR_EMPTY);
     }
     else if (end == beg)
     {
         STR_SLICE_ERROR("str_newslice: End is equal to beg - resulting slice is empty.");
-        return str_newfrom("");
+        return str_newfrom(STR_EMPTY);
     }
 
     size_t sliceLen = 1 + (end - beg - 1) / labs(step); // This is correct I think
@@ -234,7 +252,7 @@ str_t *str_newslice(const char *cstring, size_t beg, size_t end, long step)
 
 /*@brief Create a new doostr by taking ownership of an existing heap allocated c-style string. Other means of construction are
 preferable, this is only for unique occasions.*/
-str_t *str_steal(char *cstring)
+str_t *str_steal(dchar_t *cstring)
 {
     str_t *pstr = (str_t*)malloc(sizeof(str_t));
     if (!pstr)
@@ -242,7 +260,7 @@ str_t *str_steal(char *cstring)
         STRERROR("malloc");
     }
     pstr->pstr = cstring;
-    pstr->strlen = strlen(cstring);
+    pstr->strlen = _strlen(cstring);
     pstr->capacity = pstr->strlen + 1;
     return pstr;
 }
@@ -293,7 +311,7 @@ void str_clear(str_t *pstr)
     str_destroy(pstr);
 }
 
-void str_assign_c(str_t *pstr, const char *cstring)
+void str_assign_c(str_t *pstr, const dchar_t *cstring)
 {
     if (!cstring)
     {
@@ -307,7 +325,7 @@ void str_assign_c(str_t *pstr, const char *cstring)
     {
         return;
     }
-    size_t clen = strlen(cstring);
+    size_t clen = _strlen(cstring);
     if (!pstr->pstr)
     {
         str_realloc(pstr, clen + 1);
@@ -317,7 +335,7 @@ void str_assign_c(str_t *pstr, const char *cstring)
         str_realloc(pstr, clen + 1);
     }
     pstr->strlen = clen;
-    memcpy(pstr->pstr, cstring, clen + 1);
+    memcpy(pstr->pstr, cstring, (clen + 1) * sizeof(dchar_t));
 }
 
 void str_assign(str_t *pleft, const str_t *pright)
@@ -343,11 +361,11 @@ void str_assign(str_t *pleft, const str_t *pright)
         str_realloc(pleft, pright->strlen + 1);
     }
     pleft->strlen = pright->strlen;
-    memcpy(pleft->pstr, pright->pstr, pright->strlen + 1);
+    memcpy(pleft->pstr, pright->pstr, (pright->strlen + 1) * sizeof(dchar_t));
 }
 
 /*This function, unlike str_newslice by default allows you to use empty slices by setting beg the same as end.*/
-void str_assignSlice(str_t *pstr, const char *cstring, size_t beg, size_t end, long step)
+void str_assignSlice(str_t *pstr, const dchar_t *cstring, size_t beg, size_t end, long step)
 {
     if (!cstring)
     {
@@ -356,17 +374,17 @@ void str_assignSlice(str_t *pstr, const char *cstring, size_t beg, size_t end, l
     if (!(*cstring))
     {
         STR_SLICE_ERROR("str_assignSlice: The sliced cstring is empty.");
-        str_assign_c(pstr, "");
+        str_assign_c(pstr, STR_EMPTY);
         return;
     }
     if (step == 0)
     {
         STR_SLICE_ERROR("str_assignSlice: The step cannot be zero. Resulting slice is empty.");
-        str_assign_c(pstr, "");
+        str_assign_c(pstr, STR_EMPTY);
         return;
     }
 
-    size_t clen = strlen(cstring);
+    size_t clen = _strlen(cstring);
     beg = __str_boundIndex(beg, clen); // In case the index is 'from the end'
     if (beg > clen)
     {
@@ -382,12 +400,12 @@ void str_assignSlice(str_t *pstr, const char *cstring, size_t beg, size_t end, l
     if (end < beg)
     {
         STR_SLICE_ERROR("str_assignSlice: End is less than beg - resulting slice is invalid (empty).");
-        str_assign_c(pstr, "");
+        str_assign_c(pstr, STR_EMPTY);
         return;
     }
     else if (end == beg)
     {
-        str_assign_c(pstr, "");
+        str_assign_c(pstr, STR_EMPTY);
         return;
     }
     size_t sliceLen = 1 + (end - beg - 1) / labs(step); // This is correct I think
@@ -414,13 +432,13 @@ void str_assignSlice(str_t *pstr, const char *cstring, size_t beg, size_t end, l
     pstr->pstr[pstr->strlen] = '\0';
 }
 
-void str_append_c(str_t *pstr, const char *cstring)
+void str_append_c(str_t *pstr, const dchar_t *cstring)
 {
     if (!pstr || !cstring)
     {
         STRFAIL("str_append: The address of a str_t or a c string was null.");
     }
-    size_t rlen = strlen(cstring);
+    size_t rlen = _strlen(cstring);
     if (!pstr->pstr)
     {
         str_realloc(pstr, STR_NEWCAPACITY(rlen + 1));
@@ -439,7 +457,7 @@ void str_append_c(str_t *pstr, const char *cstring)
         }
     }
 
-    memcpy(pstr->pstr + pstr->strlen, cstring, rlen + 1);
+    memcpy(pstr->pstr + pstr->strlen, cstring, (rlen + 1) * sizeof(dchar_t));
     pstr->strlen = pstr->strlen + rlen; 
 }
 
@@ -470,14 +488,14 @@ void str_append(str_t *pleft, const str_t *pright)
             STRERROR("realloc");
         }
     }
-    memcpy(pleft->pstr + pleft->strlen, pright->pstr, pright->strlen + 1);
+    memcpy(pleft->pstr + pleft->strlen, pright->pstr, (pright->strlen + 1) * sizeof(dchar_t));
     pleft->strlen = pleft->strlen + pright->strlen;
 }
 
 /*
 @brief Inserts a cstring starting at a given position in the str_t object. If the str_t is empty only position 0 is valid.
 */
-void str_insert_c(str_t *pstr, const char *cstring, size_t position)
+void str_insert_c(str_t *pstr, const dchar_t *cstring, size_t position)
 {
     // if (position < 0)
     // {
@@ -496,7 +514,7 @@ void str_insert_c(str_t *pstr, const char *cstring, size_t position)
         str_append_c(pstr, cstring);
         return;
     }
-    size_t rlen = strlen(cstring); 
+    size_t rlen = _strlen(cstring); 
     if ((!pstr->pstr || pstr->strlen == 0) && position != 0)
     {
         STRFAIL("str_insert_c: Cannot insert at a non zero position to an empty string.");
@@ -505,7 +523,7 @@ void str_insert_c(str_t *pstr, const char *cstring, size_t position)
     if (!pstr->pstr)
     {
         str_realloc(pstr, STR_NEWCAPACITY(rlen + 1));
-        memcpy(pstr->pstr, cstring, rlen + 1);
+        memcpy(pstr->pstr, cstring, (rlen + 1) * sizeof(dchar_t));
         pstr->strlen = rlen;
         return;
     }
@@ -514,14 +532,14 @@ void str_insert_c(str_t *pstr, const char *cstring, size_t position)
     {
         size_t newcap = STR_NEWCAPACITY(pstr->strlen + rlen + 1);
         STR_LOG_ALLOC(pstr->capacity, newcap);
-        char *newblock = (char*)malloc(sizeof(char)*newcap);  
+        dchar_t *newblock = (dchar_t *)malloc(sizeof(dchar_t) * newcap);  
         if (!newblock)
         {
             STRERROR("malloc");
         }
-        memcpy(newblock, pstr->pstr, position);
-        memcpy(newblock + position, cstring, rlen);
-        memcpy(newblock + position + rlen, pstr->pstr + position, pstr->strlen - position);
+        memcpy(newblock, pstr->pstr, position * sizeof(dchar_t));
+        memcpy(newblock + position, cstring, rlen * sizeof(dchar_t));
+        memcpy(newblock + position + rlen, pstr->pstr + position, (pstr->strlen - position) * sizeof(dchar_t));
         newblock[pstr->strlen + rlen] = '\0';
         free(pstr->pstr);
         pstr->pstr = newblock;
@@ -536,7 +554,7 @@ void str_insert_c(str_t *pstr, const char *cstring, size_t position)
     {
         pstr->pstr[i + rlen] = pstr->pstr[i];
     }
-    memcpy(pstr->pstr + position, cstring, rlen);
+    memcpy(pstr->pstr + position, cstring, rlen * sizeof(dchar_t));
     pstr->strlen = pstr->strlen + rlen;
     pstr->pstr[pstr->strlen] = '\0';
 }
@@ -568,7 +586,7 @@ void str_insert(str_t *pleft, str_t *pright, size_t position)
     if (!pleft->pstr)
     {
         str_realloc(pleft, STR_NEWCAPACITY(pright->strlen + 1));
-        memcpy(pleft->pstr, pright->pstr, pright->strlen + 1);
+        memcpy(pleft->pstr, pright->pstr, (pright->strlen + 1) * sizeof(dchar_t));
         pleft->strlen = pright->strlen;
         return;
     }
@@ -577,14 +595,14 @@ void str_insert(str_t *pleft, str_t *pright, size_t position)
     {
         size_t newcap = STR_NEWCAPACITY(pleft->strlen + pright->strlen + 1);
         STR_LOG_ALLOC(pleft->capacity, newcap);
-        char *newblock = (char*)malloc(sizeof(char)*newcap);  
+        dchar_t *newblock = (dchar_t *)malloc(sizeof(dchar_t) * newcap);  
         if (!newblock)
         {
             STRERROR("malloc");
         }
-        memcpy(newblock, pleft->pstr, position);
-        memcpy(newblock + position, pright->pstr, pright->strlen);
-        memcpy(newblock + position + pright->strlen, pleft->pstr + position, pleft->strlen - position);
+        memcpy(newblock, pleft->pstr, position * sizeof(dchar_t));
+        memcpy(newblock + position, pright->pstr, pright->strlen * sizeof(dchar_t));
+        memcpy(newblock + position + pright->strlen, pleft->pstr + position, (pleft->strlen - position) * sizeof(dchar_t));
         newblock[pleft->strlen + pright->strlen] = '\0';
         free(pleft->pstr);
         pleft->pstr = newblock;
@@ -599,7 +617,7 @@ void str_insert(str_t *pleft, str_t *pright, size_t position)
     {
         pleft->pstr[i + pright->strlen] = pleft->pstr[i];
     }
-    memcpy(pleft->pstr + position, pright->pstr, pright->strlen);
+    memcpy(pleft->pstr + position, pright->pstr, pright->strlen * sizeof(dchar_t));
     pleft->strlen = pleft->strlen + pright->strlen;
     pleft->pstr[pleft->strlen] = '\0';
 }
@@ -617,11 +635,11 @@ str_t *str_concat(str_t *pleft, str_t *pright)
     // From what I've read, calling memcpy(_, NULL, 0) could violate the standard, hence the check
     if (pleft->pstr)
     {
-        memcpy(pstr->pstr, pleft->pstr, pleft->strlen); 
+        memcpy(pstr->pstr, pleft->pstr, pleft->strlen * sizeof(dchar_t)); 
     }
     if (pright->pstr)
     {
-        memcpy(pstr->pstr + pleft->strlen, pright->pstr, pright->strlen);
+        memcpy(pstr->pstr + pleft->strlen, pright->pstr, pright->strlen * sizeof(dchar_t));
     }
     pstr->pstr[pleft->strlen + pright->strlen] = '\0';
     return pstr;
@@ -656,11 +674,11 @@ void str_cut(str_t *pstr, size_t position, size_t length)
     pstr->strlen -= length;
 }
 
-size_t str_count(str_t *pstr, const char* seq); // Temporary solution to solve compilation issues.
-size_t str_countAny(str_t *pstr, const char* set);
+size_t str_count(str_t *pstr, const dchar_t * seq); // Temporary solution to solve compilation issues.
+size_t str_countAny(str_t *pstr, const dchar_t * set);
 
 /*@brief Removes all occurances of seq from the string. Returns number of removed instances.*/
-size_t str_remove(str_t *pstr, const char *seq)
+size_t str_remove(str_t *pstr, const dchar_t *seq)
 {
     if (!pstr)
     {
@@ -679,7 +697,7 @@ size_t str_remove(str_t *pstr, const char *seq)
         return 0;
     }
     size_t count = str_count(pstr, seq);
-    size_t rlen = strlen(seq);
+    size_t rlen = _strlen(seq);
     size_t newLen = pstr->strlen - count *rlen;
     size_t *seqPos = (size_t*)malloc(sizeof(size_t)*count); // Array housing the positions of found substrings
     if (!seqPos)
@@ -687,8 +705,8 @@ size_t str_remove(str_t *pstr, const char *seq)
         STRERROR("malloc");
     }
     size_t i = 0;
-    char *p = pstr->pstr;
-    while ((p = strstr(p, seq)) != NULL)
+    dchar_t *p = pstr->pstr;
+    while ((p = _strstr(p, seq)) != NULL)
     {
         //printf("pos: %ld\n", p - pstr->pstr);
         seqPos[i++] = p - pstr->pstr;
@@ -723,7 +741,7 @@ size_t str_remove(str_t *pstr, const char *seq)
 }
 
 /*@brief Removes all occurances of any character in set from the string. Returns number of removed instances.*/
-size_t str_removeAny(str_t *pstr, const char *set)
+size_t str_removeAny(str_t *pstr, const dchar_t *set)
 {
     if (!pstr)
     {
@@ -745,8 +763,8 @@ size_t str_removeAny(str_t *pstr, const char *set)
         STRERROR("malloc");
     }
     size_t i = 0;
-    char *p = pstr->pstr;
-    while ((p = strpbrk(p, set)) != NULL)
+    dchar_t *p = pstr->pstr;
+    while ((p = _strpbrk(p, set)) != NULL)
     {
         //printf("pos: %ld\n", p - pstr->pstr);
         seqPos[i++] = p - pstr->pstr;
@@ -797,7 +815,7 @@ int str_isalnum(str_t *pstr)
     {
         return 0;
     }
-    char *p = pstr->pstr;
+    dchar_t *p = pstr->pstr;
     while (*p)
     {
         if (!isalnum(*p))
@@ -819,7 +837,7 @@ int str_isalpha(str_t *pstr)
     {
         return 0;
     }
-    char *p = pstr->pstr;
+    dchar_t *p = pstr->pstr;
     while (*p)
     {
         if (!isalpha(*p))
@@ -841,7 +859,7 @@ int str_isdigit(str_t *pstr)
     {
         return 0;
     }
-    char *p = pstr->pstr;
+    dchar_t *p = pstr->pstr;
     while (*p)
     {
         if (!isdigit(*p))
@@ -863,7 +881,7 @@ int str_islower(str_t *pstr)
     {
         return 0;
     }
-    char *p = pstr->pstr;
+    dchar_t *p = pstr->pstr;
     while (*p)
     {
         if (isalpha(*p) && !islower(*p))
@@ -885,7 +903,7 @@ int str_isupper(str_t *pstr)
     {
         return 0;
     }
-    char *p = pstr->pstr;
+    dchar_t *p = pstr->pstr;
     while (*p)
     {
         if (isalpha(*p) && !isupper(*p))
@@ -907,7 +925,7 @@ int str_isspace(str_t *pstr)
     {
         return 0;
     }
-    char *p = pstr->pstr;
+    dchar_t *p = pstr->pstr;
     while (*p)
     {
         if (isspace(*p))
@@ -920,7 +938,7 @@ int str_isspace(str_t *pstr)
 }
 
 /*Returns 1 if the string contains only characters from a given set*/
-int str_containsOnly(str_t *pstr, const char *set)
+int str_containsOnly(str_t *pstr, const dchar_t *set)
 {
     if (!pstr)
     {
@@ -930,10 +948,10 @@ int str_containsOnly(str_t *pstr, const char *set)
     {
         return 0;
     }
-    char *p = pstr->pstr;
+    dchar_t *p = pstr->pstr;
     while (*p)
     {
-        if (strpbrk(p, set) != p)
+        if (_strpbrk(p, set) != p)
         {
             return 0;
         }
@@ -943,8 +961,8 @@ int str_containsOnly(str_t *pstr, const char *set)
 }
 
 /*Returns 1 if the string contains any of the characters characters from a given set.
-The function is just a wrapper for strpbrk(), but I kept it for convenience.*/
-int str_containsAny(str_t *pstr, const char *set)
+The function is just a wrapper for _strpbrk(), but I kept it for convenience.*/
+int str_containsAny(str_t *pstr, const dchar_t *set)
 {
     if (!pstr)
     {
@@ -954,12 +972,12 @@ int str_containsAny(str_t *pstr, const char *set)
     {
         return 0;
     }
-    return strpbrk(pstr->pstr, set) != NULL;
+    return _strpbrk(pstr->pstr, set) != NULL;
 }
 
 /*Returns 1 if the string contains seq as a substr.
-The function is just a wrapper for strstr() but I kept it for convenience.*/
-int str_containsSeq(str_t *pstr, const char *seq)
+The function is just a wrapper for _strstr() but I kept it for convenience.*/
+int str_containsSeq(str_t *pstr, const dchar_t *seq)
 {
     if (!pstr)
     {
@@ -969,7 +987,7 @@ int str_containsSeq(str_t *pstr, const char *seq)
     {
         return 0;
     }
-    return strstr(pstr->pstr, seq) != NULL;
+    return _strstr(pstr->pstr, seq) != NULL;
 }
 #pragma endregion
 
@@ -980,7 +998,7 @@ void str_upper(str_t *pstr)
     {
         STRFAIL("str_upper: The passed address was null.");
     }
-    char *p = pstr->pstr;
+    dchar_t *p = pstr->pstr;
     while (*p)
     {
         *p = toupper(*p); 
@@ -994,7 +1012,7 @@ void str_lower(str_t *pstr)
     {
         STRFAIL("str_upper: The passed address was null.");
     }
-    char *p = pstr->pstr;
+    dchar_t *p = pstr->pstr;
     while (*p)
     {
         *p = tolower(*p);
@@ -1012,7 +1030,7 @@ void str_swapcase(str_t *pstr)
     {
         return;
     }
-    char *p = pstr->pstr;
+    dchar_t *p = pstr->pstr;
     while (*p)
     {
         if (isupper(*p))
@@ -1028,7 +1046,7 @@ void str_swapcase(str_t *pstr)
 }
 
 /*@brief Counts how many times a sequence is found in a string.*/
-size_t str_count(str_t *pstr, const char* seq)
+size_t str_count(str_t *pstr, const dchar_t * seq)
 {
     if (!pstr)
     {
@@ -1047,8 +1065,8 @@ size_t str_count(str_t *pstr, const char* seq)
         STRFAIL("str_count: The passed sequence is empty.");
     }
     size_t count = 0;
-    char *p = pstr->pstr;
-    while ((p = strstr(p, seq)) != NULL)
+    dchar_t *p = pstr->pstr;
+    while ((p = _strstr(p, seq)) != NULL)
     {
         count++;
         p++;
@@ -1057,7 +1075,7 @@ size_t str_count(str_t *pstr, const char* seq)
 }
 
 /*@brief Counts how many times a character from a set is found in the string.*/
-size_t str_countAny(str_t *pstr, const char* set)
+size_t str_countAny(str_t *pstr, const dchar_t * set)
 {
     if (!pstr)
     {
@@ -1076,8 +1094,8 @@ size_t str_countAny(str_t *pstr, const char* set)
         STRFAIL("str_count: The passed set is empty.");
     }
     size_t count = 0;
-    char *p = pstr->pstr;
-    while ((p = strpbrk(p, set)) != NULL)
+    dchar_t *p = pstr->pstr;
+    while ((p = _strpbrk(p, set)) != NULL)
     {
         count++;
         p++;
@@ -1088,7 +1106,7 @@ size_t str_countAny(str_t *pstr, const char* set)
 /*@brief Replaces each full occurance of oldval with newval. Returns the number of replaced instances. Always causes reallocation.
 NOTE: This *can* be used for removing substrings, but isn't recomended as this function causes an unnecessary reallocation. In such cases
 use str_remove() instead!*/
-size_t str_replace(str_t *pstr, const char *oldval, const char *newval)  // I suck at C, debugging this was hell...
+size_t str_replace(str_t *pstr, const dchar_t *oldval, const dchar_t *newval)  // I suck at C, debugging this was hell...
 {
     if (!pstr)
     {
@@ -1103,7 +1121,7 @@ size_t str_replace(str_t *pstr, const char *oldval, const char *newval)  // I su
         STRFAIL("str_replace: The passed address of newval was null.");
     }
     size_t count = str_count(pstr, oldval);
-    size_t rlen = strlen(newval), llen = strlen(oldval);
+    size_t rlen = _strlen(newval), llen = _strlen(oldval);
     size_t newLen = (rlen > llen) ? pstr->strlen + count*(rlen-llen) : pstr->strlen - count*(llen-rlen);
     size_t *offsets = (size_t*)malloc(sizeof(size_t)*count);
     if (!offsets)
@@ -1111,14 +1129,14 @@ size_t str_replace(str_t *pstr, const char *oldval, const char *newval)  // I su
         STRERROR("malloc");
     }
     size_t i = 0;
-    char *p = pstr->pstr;
-    while ((p = strstr(p, oldval)) != NULL)
+    dchar_t *p = pstr->pstr;
+    while ((p = _strstr(p, oldval)) != NULL)
     {
         offsets[i++] = p - pstr->pstr;
         p += llen;
     }
 
-    char *newblock;
+    dchar_t *newblock;
     size_t blocksize;
     if (pstr->capacity < newLen + 1)
     {
@@ -1128,7 +1146,7 @@ size_t str_replace(str_t *pstr, const char *oldval, const char *newval)  // I su
     {
         blocksize = pstr->capacity;
     }
-    newblock = (char*)malloc(sizeof(char)*blocksize);
+    newblock = (dchar_t *)malloc(sizeof(dchar_t) * blocksize);
     memset(newblock, 0, blocksize);
     STR_LOG_ALLOC(pstr->capacity, blocksize);
     if (!newblock)
@@ -1143,7 +1161,7 @@ size_t str_replace(str_t *pstr, const char *oldval, const char *newval)  // I su
     {
         if (indOff < count && oldpos == offsets[indOff])
         {
-            memcpy(newblock + i, newval, rlen);
+            memcpy(newblock + i, newval, rlen * sizeof(dchar_t));
             i += rlen;
             oldpos += llen;
             indOff++;
@@ -1166,7 +1184,7 @@ size_t str_replace(str_t *pstr, const char *oldval, const char *newval)  // I su
 /*@brief Replaces any of the characters in set with newval. Returns the number of replaced instances. Always causes reallocation.
 NOTE: This *can* be used for removing characters, but isn't recomended as this function causes an unnecessary reallocation. In such cases
 use str_removeAny() instead!*/
-size_t str_replaceAny(str_t *pstr, const char *set, const char *newval)
+size_t str_replaceAny(str_t *pstr, const dchar_t *set, const dchar_t *newval)
 {
     if (!pstr)
     {
@@ -1181,7 +1199,7 @@ size_t str_replaceAny(str_t *pstr, const char *set, const char *newval)
         STRFAIL("str_replaceAny: The passed address of newval was null.");
     }
     size_t count = str_countAny(pstr, set);
-    size_t rlen = strlen(newval);
+    size_t rlen = _strlen(newval);
     size_t extraChars = count * rlen - count; // Additional needed characters
     size_t *offsets = (size_t*)malloc(sizeof(size_t)*count);
     if (!offsets)
@@ -1189,14 +1207,14 @@ size_t str_replaceAny(str_t *pstr, const char *set, const char *newval)
         STRERROR("malloc");
     }
     size_t i = 0;
-    char *p = pstr->pstr;
-    while ((p = strpbrk(p, set)) != NULL)
+    dchar_t *p = pstr->pstr;
+    while ((p = _strpbrk(p, set)) != NULL)
     {
         offsets[i++] = p - pstr->pstr;
         p++;
     }
 
-    char *newblock;
+    dchar_t *newblock;
     size_t blocksize;
     if (pstr->capacity < pstr->strlen + extraChars + 1)
     {
@@ -1206,7 +1224,7 @@ size_t str_replaceAny(str_t *pstr, const char *set, const char *newval)
     {
         blocksize = pstr->capacity;
     }
-    newblock = (char*)malloc(sizeof(char)*blocksize);
+    newblock = (dchar_t *)malloc(sizeof(dchar_t) * blocksize);
     STR_LOG_ALLOC(pstr->capacity, blocksize);
     if (!newblock)
     {
@@ -1220,7 +1238,7 @@ size_t str_replaceAny(str_t *pstr, const char *set, const char *newval)
     {
         if (indOff < count && oldpos == offsets[indOff])
         {
-            memcpy(newblock + i, newval, rlen);
+            memcpy(newblock + i, newval, rlen * sizeof(dchar_t));
             i += rlen;
             indOff++;
         }
@@ -1239,7 +1257,7 @@ size_t str_replaceAny(str_t *pstr, const char *set, const char *newval)
 }
 
 /*@brief Replaces any of the characters in set with a char c. Returns the number of replaced instances.*/
-size_t str_replaceAnyCh(str_t *pstr, const char *set, char c)
+size_t str_replaceAnyCh(str_t *pstr, const dchar_t *set, char c)
 {
     if (!pstr)
     {
@@ -1254,8 +1272,8 @@ size_t str_replaceAnyCh(str_t *pstr, const char *set, char c)
         STRFAIL("str_replaceAnyCh: The passed address of seq was null.");
     }
     size_t count = 0;
-    char *p = pstr->pstr;
-    while ((p = strpbrk(p, set)) != NULL)
+    dchar_t *p = pstr->pstr;
+    while ((p = _strpbrk(p, set)) != NULL)
     {
         *p = c;
         count++;
@@ -1276,7 +1294,7 @@ void str_strip(str_t *pstr)
         return;
     }
     size_t leftoff = 0, rightoff = 0;
-    char *p = pstr->pstr;
+    dchar_t *p = pstr->pstr;
     while (*p && isspace(*p))
     {
         ++leftoff;
@@ -1316,7 +1334,7 @@ void str_lstrip(str_t *pstr)
         return;
     }
     size_t leftoff = 0;
-    char *p = pstr->pstr;
+    dchar_t *p = pstr->pstr;
     while (*p && isspace(*p))
     {
         ++leftoff;
@@ -1350,7 +1368,7 @@ void str_rstrip(str_t *pstr)
         return;
     }
     size_t rightoff = 0;
-    char *p = pstr->pstr + pstr->strlen - 1;
+    dchar_t *p = pstr->pstr + pstr->strlen - 1;
     while (p >= pstr->pstr && isspace(*p))
     {
         ++rightoff;
@@ -1364,7 +1382,7 @@ void str_rstrip(str_t *pstr)
 
 #pragma region SPLITTING
 /*@brief Searches the string and returns the index where seq first occurs. -1 otherwise.*/
-ssize_t str_index(str_t *pstr, const char *seq)
+ssize_t str_index(str_t *pstr, const dchar_t *seq)
 {
     if (!pstr)
     {
@@ -1384,8 +1402,8 @@ ssize_t str_index(str_t *pstr, const char *seq)
     }
     ssize_t found = -1;
     ssize_t i = 0;
-    const char *ps = seq;
-    // This could be strstr(pstr->pstr) - pstr->pstr; But this is more easily modifiable.
+    const dchar_t *ps = seq;
+    // This could be _strstr(pstr->pstr) - pstr->pstr; But this is more easily modifiable.
     while (pstr->pstr[i])
     {
         found = i;
@@ -1407,7 +1425,7 @@ ssize_t str_index(str_t *pstr, const char *seq)
 }
 
 /*@brief Searches the string and returns the index where seq last occurs. -1 otherwise.*/
-ssize_t str_rindex(str_t *pstr, const char *seq)
+ssize_t str_rindex(str_t *pstr, const dchar_t *seq)
 {
     if (!pstr)
     {
@@ -1427,8 +1445,8 @@ ssize_t str_rindex(str_t *pstr, const char *seq)
     }
     ssize_t ending = -1;
     ssize_t i = pstr->strlen -1;
-    ssize_t rlen = strlen(seq);
-    const char *ps = seq + rlen - 1;
+    ssize_t rlen = _strlen(seq);
+    const dchar_t *ps = seq + rlen - 1;
     while (i >= 0)
     {
         ending = i;
@@ -1456,7 +1474,7 @@ The passed output strings can but don't have to be initialized.
 @param[in] pivot str_t containing the substring before the pivot.
 @param[in] outleft str_t containing the substring before the pivot.
 @param[in] outmid str_t containing the substring before the pivot.*/
-void str_partition(str_t *pstr, const char *pivot, str_t **outleft, str_t **outmid, str_t **outright)
+void str_partition(str_t *pstr, const dchar_t *pivot, str_t **outleft, str_t **outmid, str_t **outright)
 {
     if (!pstr)
     {
@@ -1491,12 +1509,12 @@ void str_partition(str_t *pstr, const char *pivot, str_t **outleft, str_t **outm
         *outright = str_new(0);
     }
     ssize_t pivInd = str_index(pstr, pivot);
-    size_t pivLen = strlen(pivot);
+    size_t pivLen = _strlen(pivot);
     if (pivInd == -1)
     {
-        str_assign_c(*outright, "");
+        str_assign_c(*outright, STR_EMPTY);
         str_assign_c(*outmid, pivot);
-        str_assign_c(*outright, "");
+        str_assign_c(*outright, STR_EMPTY);
     }
     else
     {
@@ -1506,7 +1524,7 @@ void str_partition(str_t *pstr, const char *pivot, str_t **outleft, str_t **outm
     }
 }
 
-void str_rpartition(str_t *pstr, const char *pivot, str_t **outleft, str_t **outmid, str_t **outright)
+void str_rpartition(str_t *pstr, const dchar_t *pivot, str_t **outleft, str_t **outmid, str_t **outright)
 {
     if (!pstr)
     {
@@ -1541,12 +1559,12 @@ void str_rpartition(str_t *pstr, const char *pivot, str_t **outleft, str_t **out
         *outright = str_new(0);
     }
     ssize_t pivInd = str_rindex(pstr, pivot);
-    size_t pivLen = strlen(pivot);
+    size_t pivLen = _strlen(pivot);
     if (pivInd == -1)
     {
-        str_assign_c(*outright, "");
+        str_assign_c(*outright, STR_EMPTY);
         str_assign_c(*outmid, pivot);
-        str_assign_c(*outright, "");
+        str_assign_c(*outright, STR_EMPTY);
     }
     else
     {
@@ -1570,7 +1588,7 @@ typedef struct sarr
 /*@brief Create a sarr_t by taking onwership of an existing array of c-style strings.
 The cstring pointer is freed, dangling and unusable afterwards. Make sure that the provided array is of size n,
 otherwise excpect read violations. Please be careful with this.*/
-sarr_t *str_asteal(char **cstrings, size_t n)
+sarr_t *str_asteal(dchar_t **cstrings, size_t n)
 {
     if (!cstrings)
     {
@@ -1604,7 +1622,7 @@ sarr_t *str_asteal(char **cstrings, size_t n)
 }
 
 /*@brief Create a sarr_t by copying an already existing array of c-style strings.*/
-sarr_t *str_afrom(char **cstrings, size_t n)
+sarr_t *str_afrom(dchar_t **cstrings, size_t n)
 {
     if (!cstrings)
     {
@@ -1667,7 +1685,7 @@ void str_afree(sarr_t **pparr)
 
 /*@brief Internal function that counts how many parts spliting the string by delim will result in.
 I have a feeling this is horribly written and could be rewritten to 1/2 the length. This is godawful, but works.*/
-size_t __str_countSplits(str_t *pstr, const char *delim, size_t *dsize)
+size_t __str_countSplits(str_t *pstr, const dchar_t *delim, size_t *dsize)
 {
     if (!pstr)
     {
@@ -1685,15 +1703,15 @@ size_t __str_countSplits(str_t *pstr, const char *delim, size_t *dsize)
     {
         return 1;
     }
-    size_t dlen = strlen(delim);
+    size_t dlen = _strlen(delim);
     if (dsize)
     {
         *dsize = dlen;
     }
-    const char *p = pstr->pstr, *plast = p;
+    const dchar_t *p = pstr->pstr, *plast = p;
     size_t count = 0;
     short anyDelim = 0;
-    while ((p = strstr(p, delim)) != NULL)
+    while ((p = _strstr(p, delim)) != NULL)
     {
         // Check if character to the left is not outside or part of another delim sequence
         if (p == pstr->pstr || (plast + dlen >= p && anyDelim))
@@ -1725,7 +1743,7 @@ size_t __str_countSplits(str_t *pstr, const char *delim, size_t *dsize)
 }
 
 /*@brief Splits the string by delim and returns an array (sarr_t) of resulting strings.*/
-sarr_t *str_split(str_t *pstr, const char *delim)
+sarr_t *str_split(str_t *pstr, const dchar_t *delim)
 {
     size_t dlen;
     size_t numSplits = __str_countSplits(pstr, delim, &dlen);
@@ -1757,11 +1775,11 @@ sarr_t *str_split(str_t *pstr, const char *delim)
         STRERROR("malloc");
     }
     
-    // size_t dlen = strlen(dlen);
+    // size_t dlen = _strlen(dlen);
     // size_t ind = 0;
-    // const char *p = pstr->pstr;
-    // const char *plast = p;
-    // while ((p = strstr(p, delim)) != NULL)
+    // const dchar_t *p = pstr->pstr;
+    // const dchar_t *plast = p;
+    // while ((p = _strstr(p, delim)) != NULL)
     // {
     //     //parr->strArr[ind] = str_newslice(plast, dlen, p - plast);
     //     plast = p;

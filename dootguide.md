@@ -93,10 +93,10 @@ Position 6 targets the second space. Notice that ```"happy "``` is inserted betw
 To remove a certain portion of the string, that is *cut it out*, use ```str_cut(str_t *pstr, size_t position, size_t length)```:
 
 ```C
-str_t *s = str_newfrom("Java script is a badass language");
+str_t *s = str_newfrom("Javascript is a badass language");
 str_cut(s, 20, 3);
 puts(s->pstr);
-> Java script is a bad language
+> Javascript is a bad language
 ```
 
 To remove any ocurance of a given substring use ```str_remove(str_t *pstr, const char *substr)```:

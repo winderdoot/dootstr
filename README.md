@@ -4,7 +4,7 @@
 Simple C string library by widerdoot.  
 I have no idea how to write markdown files, I'll fix this up as I go.  
 There will be documentation here and shit. For now it's a to do list.  
-See [dootguide](dootguide.md) to learn how to use this library.
+See [dootguide](dootguide.md) to learn how to use this library. 
 
 ## Notes on allocations
 
